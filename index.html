@@ -107,6 +107,32 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
 .b-blue { background: var(--blue); color: #0b0c0f; }
 .b-gray { background: #3a3a3c; color: #fff; }
 .b-green { background: var(--green); color: #0b0c0f; }
+
+.clock-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; margin-top: 10px; padding: 10px 12px;
+  background: #0b0c0f; border: 1px solid var(--border); border-radius: 10px;
+}
+.clock-label { font-size: 12px; color: var(--muted); font-weight: 700; }
+.clock {
+  margin-left: 0 !important; font-variant-numeric: tabular-nums;
+  font-size: 28px !important; font-weight: 900; color: #fff; letter-spacing: 0.02em;
+}
+.laps-box {
+  margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+  background: #0b0c0f; border: 1px solid var(--border);
+  font-size: 12px; color: var(--muted);
+}
+.laps-box h3 {
+  margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 700;
+}
+.laps-box .lap-row {
+  display: flex; justify-content: space-between; gap: 8px;
+  padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-variant-numeric: tabular-nums; color: #f3f4f6;
+}
+.laps-box .lap-row:last-child { border-bottom: 0; }
+.laps-box .delta { color: #6BAFD6; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -131,7 +157,9 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     </div>
     <p class="hint">
       下の<strong>長いボタン1つだけ</strong>を順番に押します。<br>
-      ①再生 → ②通過1 → ③通過2 → … → 規定回で集計 → また再生/停止に戻ります。<br>
+      ①再生 → ②通過1 → ③通過2 → … → 規定回で集計 → 再生/停止に戻ります。<br>
+      <strong>なぜ通過が周回+1回？</strong> 同じラインを通る方式のため、<br>
+      1回目→スタート、2回目→1周終了、3回目→2周終了、4回目→3周終了（ゴール）。周回3なら通過は4回です。<br>
       複数レーンは「計測するレーン」を切り替えて繰り返します。
     </p>
   </div>
@@ -142,9 +170,14 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
       <video id="video" playsinline></video>
     </div>
     <div class="tools">
+      <button type="button" id="btnReplay">再度再生</button>
+      <button type="button" id="btnPlayReset">再生リセット</button>
       <button type="button" id="btnBack">-0.5秒</button>
       <button type="button" id="btnFwd">+0.5秒</button>
-      <button type="button" id="btnResetLane">このレーンの記録を消す</button>
+      <button type="button" id="btnResetLane">記録を消す</button>
+    </div>
+    <div class="clock-row">
+      <div class="clock-label">動画の秒数</div>
       <div class="clock" id="clock">0.000</div>
     </div>
 
@@ -156,6 +189,10 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     <div class="live" id="liveBox">
       <div class="big" id="liveTime">—</div>
       <div class="meta" id="liveMeta">まだ計測していません</div>
+    </div>
+    <div class="laps-box" id="lapsBox">
+      <h3>ラップ（秒差）</h3>
+      <div id="lapsList">まだありません</div>
     </div>
     <div class="status" id="status">動画を選んでください</div>
   </div>
@@ -220,6 +257,19 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
   function laneCount() { return Math.max(1, Math.min(8, parseInt($('laneN').value, 10) || 3)); }
   function lapCount() { return Math.max(1, Math.min(50, parseInt($('laps').value, 10) || 3)); }
   function needHits() { return lapCount() + 1; }
+
+  /** 通過回番号(1-based) → 表示文言 */
+  function passLabel(n) {
+    n = n | 0;
+    if (n <= 1) return 'スタート';
+    var need = needHits();
+    if (n >= need) return (need - 1) + '周終了（ゴール）';
+    return (n - 1) + '周終了';
+  }
+  function passButtonTitle(nextPass1Based) {
+    return passLabel(nextPass1Based);
+  }
+
   function activeIndex() {
     // select value is lane number 1..n (1 = rightmost conceptually for display)
     // internal array left→right: index 0 left ... n-1 right
@@ -283,8 +333,34 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     var next = state.passIndex + 1;
     var need = needHits();
     mainBtn.classList.add('state-pass');
-    mainBtn.childNodes[0].textContent = '通過 ' + next;
-    mainSub.textContent = 'レーン ' + activeLaneSel.value + ' ／ 残り ' + (need - state.passIndex) + ' 回（全' + need + '回）';
+    mainBtn.childNodes[0].textContent = passButtonTitle(next);
+    mainSub.textContent = 'レーン ' + activeLaneSel.value + ' ／ 次: ' + passLabel(next) +
+      '（' + next + '/' + need + '・周回' + lapCount() + '）';
+  }
+
+
+  function renderLaps() {
+    var box = document.getElementById('lapsList');
+    if (!box) return;
+    ensureHitsSize();
+    var arr = state.hits[activeIndex()] || [];
+    if (arr.length < 2) {
+      box.textContent = 'まだありません（通過が2回以上で秒差が出ます）';
+      return;
+    }
+    var html = '';
+    for (var k = 1; k < arr.length; k++) {
+      var delta = arr[k] - arr[k - 1];
+      var label = passLabel(k) + ' → ' + passLabel(k + 1);
+      html += '<div class="lap-row"><span>' + label + '</span><span class="delta">' +
+        delta.toFixed(3) + ' 秒</span></div>';
+    }
+    if (arr.length >= needHits()) {
+      var total = arr[needHits() - 1] - arr[0];
+      html += '<div class="lap-row"><span><strong>合計</strong></span><span class="delta"><strong>' +
+        total.toFixed(3) + ' 秒</strong></span></div>';
+    }
+    box.innerHTML = html;
   }
 
   function liveUpdateForActive() {
@@ -300,15 +376,16 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     if (arr.length >= need) {
       var sec = (arr[need - 1] - arr[0]);
       liveTime.textContent = sec.toFixed(3) + ' 秒';
-      liveMeta.textContent = 'レーン ' + activeLaneSel.value + ' 完了（' + need + ' 通過）';
+      liveMeta.textContent = 'レーン ' + activeLaneSel.value + ' 完了：' + passLabel(need);
     } else {
       // provisional time from first pass to now / last pass
       var last = arr[arr.length - 1];
       var provisional = last - arr[0];
       liveTime.textContent = provisional.toFixed(3) + ' 秒';
-      liveMeta.textContent = 'レーン ' + activeLaneSel.value + ' 計測中 ' + arr.length + '/' + need +
-        '（暫定: 先頭通過からの経過）';
+      liveMeta.textContent = 'レーン ' + activeLaneSel.value + ' 計測中 / 次は ' + passLabel(arr.length + 1) +
+        '（' + arr.length + '/' + need + '）';
     }
+    renderLaps();
   }
 
   function renderTable() {
@@ -356,7 +433,7 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     cancelAnimationFrame(state.raf);
     updateClock();
     updateMainButton();
-    setStatus('通過1を待っています。通過した瞬間にボタンを押してください');
+    setStatus('スタートを待っています。通過した瞬間にボタンを押してください');
   }
 
   function recordPass() {
@@ -383,7 +460,7 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
       finishLane(finalSec);
     } else {
       updateMainButton();
-      setStatus('通過 ' + state.hits[i].length + ' 記録 @ ' + t.toFixed(3) + 's → 次は通過 ' + (state.hits[i].length + 1));
+      setStatus(passLabel(state.hits[i].length) + ' 記録 @ ' + t.toFixed(3) + 's → 次は ' + passLabel(state.hits[i].length + 1));
     }
   }
 
@@ -433,7 +510,7 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
       cancelAnimationFrame(state.raf);
       updateClock();
       updateMainButton();
-      setStatus('通過 ' + (state.passIndex + 1) + ' を待っています');
+      setStatus(passLabel(state.passIndex + 1) + ' を待っています');
       return;
     }
 
@@ -533,6 +610,37 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     setStatus('計測レーンを ' + activeLaneSel.value + ' に切り替えました');
   });
 
+  
+  if ($('btnReplay')) $('btnReplay').addEventListener('click', function () {
+    if (!state.ready) return;
+    video.currentTime = 0;
+    ensureHitsSize();
+    state.passIndex = (state.hits[activeIndex()] || []).length;
+    if (state.passIndex >= needHits()) {
+      state.phase = 'idle';
+      setStatus('このレーンは完了済みです。記録を消すか、別レーンへ');
+      updateMainButton();
+      return;
+    }
+    state.phase = 'pass';
+    video.play().catch(function () {});
+    cancelAnimationFrame(state.raf);
+    updateClock();
+    updateMainButton();
+    setStatus('再度再生しました。次は ' + passLabel(state.passIndex + 1));
+  });
+  if ($('btnPlayReset')) $('btnPlayReset').addEventListener('click', function () {
+    if (!state.ready) return;
+    try { video.pause(); } catch (e) {}
+    video.currentTime = 0;
+    state.phase = 'idle';
+    state.passIndex = 0;
+    cancelAnimationFrame(state.raf);
+    updateClock();
+    updateMainButton();
+    setStatus('再生位置を先頭に戻し、待機状態にしました（記録は残っています）');
+  });
+
   $('btnBack').addEventListener('click', function () {
     if (!state.ready) return;
     video.currentTime = Math.max(0, (video.currentTime || 0) - 0.5);
@@ -551,6 +659,7 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     updateMainButton();
     liveUpdateForActive();
     renderTable();
+    if (typeof renderLaps === 'function') renderLaps();
     setStatus('レーン ' + activeLaneSel.value + ' の記録を消しました');
   });
   $('btnClearAll').addEventListener('click', function () {
