@@ -32,6 +32,7 @@ video{display:block;width:100%;height:auto;max-height:36vh;background:#000}
 .overlay{position:absolute;left:0;right:0;top:0;padding:6px 10px;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.65),rgba(0,0,0,0))}
 .overlay .race-clock{font-variant-numeric:tabular-nums;font-size:24px;font-weight:900;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.8)}
 .overlay .race-sub{margin-top:1px;font-size:11px;font-weight:700;color:#d1d5db;text-shadow:0 1px 4px rgba(0,0,0,.8)}
+.overlay .race-laps{margin-top:3px;font-size:11px;font-weight:700;color:#6BAFD6;text-shadow:0 1px 4px rgba(0,0,0,.8);line-height:1.35;white-space:pre-line}
 .tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .tools button{border:0;border-radius:8px;padding:8px 10px;font-weight:700;font-size:11px;background:#3a3a3c;color:#fff;cursor:pointer}
 .clock-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:8px;padding:8px 10px;background:#0b0c0f;border:1px solid var(--border);border-radius:10px}
@@ -111,7 +112,8 @@ button:disabled{opacity:.45;cursor:default}
         <div class="overlay" id="overlay">
           <div class="race-clock" id="raceClock">—</div>
           <div class="race-sub" id="raceSub">スタート前</div>
-          <div class="race-sub" id="raceLap">ラップ: —</div>
+          <div class="race-sub" id="raceLap">ラップ秒差</div>
+          <div class="race-laps" id="raceLapList">—</div>
         </div>
       </div>
     </div>
@@ -136,7 +138,7 @@ button:disabled{opacity:.45;cursor:default}
       <div class="meta" id="liveMeta">まだ計測していません</div>
     </div>
     <div class="laps-box">
-      <h3>ラップ（秒差）</h3>
+      <h3>ラップ時間 と 前周との差</h3>
       <div id="lapsList">まだありません</div>
     </div>
     <div class="status" id="status">動画を選んでください</div>
@@ -145,7 +147,7 @@ button:disabled{opacity:.45;cursor:default}
   <div class="card">
     <h2>3. 結果</h2>
     <table>
-      <thead><tr><th>レーン</th><th>合計</th><th>ラップ秒差</th><th>状態</th></tr></thead>
+      <thead><tr><th>レーン</th><th>合計</th><th>ラップ / 前周差</th><th>状態</th></tr></thead>
       <tbody id="tbody"><tr><td colspan="4" style="color:#9ca3af">未記録</td></tr></tbody>
     </table>
     <div class="save-row">
@@ -289,40 +291,96 @@ function rotateView(delta){
   setStatus('表示向き: '+(state.viewRot===0?'そのまま':state.viewRot+'°'));
 }
 
+function formatLapDeltas(arr, upTo){
+  // 各周のラップ秒 + 前周との差分（例 12.345 と 11.200 → 差 -1.145）
+  if(!arr||arr.length<2) return [];
+  var end=typeof upTo==='number'?upTo:arr.length-1;
+  end=Math.min(end, arr.length-1);
+  var lines=[];
+  var prevLap=null;
+  for(var k=1;k<=end;k++){
+    var lap=arr[k]-arr[k-1];
+    var label=passLabel(k)+'→'+passLabel(k+1);
+    var line=label+'  '+lap.toFixed(3)+'s';
+    if(prevLap!=null){
+      var diff=lap-prevLap;
+      var sign=diff>0?'+':'';
+      line+='  （前周差 '+sign+diff.toFixed(3)+'s）';
+    }
+    lines.push(line);
+    prevLap=lap;
+  }
+  return lines;
+}
+function formatLapRowsHtml(arr){
+  if(!arr||arr.length<2) return '';
+  var html='';
+  var prevLap=null;
+  for(var k=1;k<arr.length;k++){
+    var lap=arr[k]-arr[k-1];
+    var label=passLabel(k)+' → '+passLabel(k+1);
+    var right=lap.toFixed(3)+' 秒';
+    if(prevLap!=null){
+      var diff=lap-prevLap;
+      var sign=diff>0?'+':'';
+      right+=' <span style="color:#ffd60a">前周差 '+sign+diff.toFixed(3)+'</span>';
+    }
+    html+='<div class="lap-row"><span>'+label+'</span><span class="delta">'+right+'</span></div>';
+    prevLap=lap;
+  }
+  if(arr.length>=needHits()){
+    html+='<div class="lap-row"><span><strong>合計</strong></span><span class="delta"><strong>'+
+      (arr[needHits()-1]-arr[0]).toFixed(3)+' 秒</strong></span></div>';
+  }
+  return html;
+}
 function raceElapsedAt(t){
   var arr=activeHits();
   if(!arr.length)return null;
   var t0=arr[0],need=needHits();
-  if(t<t0)return {sec:0,label:'スタート前',lapText:'ラップ: —'};
-  if(arr.length>=need && t>=arr[need-1]){
-    var total=arr[need-1]-t0;
-    var lastDelta=arr.length>=2?(arr[need-1]-arr[need-2]):0;
-    return {sec:total,label:'ゴール '+total.toFixed(3)+'s',lapText:'最終ラップ差 '+lastDelta.toFixed(3)+'s'};
-  }
+  if(t<t0)return {sec:0,label:'スタート前',lapText:'ラップ秒差: —', lapLines:[]};
   var idx=0;
   for(var i=0;i<arr.length;i++) if(t>=arr[i]) idx=i;
-  var lapText='ラップ: —';
+  var lines=formatLapDeltas(arr, idx);
+  if(arr.length>=need && t>=arr[need-1]){
+    var total=arr[need-1]-t0;
+    return {
+      sec:total,
+      label:'ゴール '+total.toFixed(3)+'s',
+      lapText: lines.length ? lines.join(' / ') : '—',
+      lapLines: lines
+    };
+  }
+  var lapText='';
   if(idx>=1){
-    lapText='現在ラップ '+(t-arr[idx]).toFixed(3)+'s / 前区間 '+(arr[idx]-arr[idx-1]).toFixed(3)+'s';
+    var cur=(t-arr[idx]);
+    lapText='現在 '+(idx)+'周目 +'+cur.toFixed(3)+'s';
+    if(lines.length) lapText += ' ｜ '+lines.join(' / ');
   }else{
     lapText='スタート後 '+(t-t0).toFixed(3)+'s';
   }
-  return {sec:t-t0,label:passLabel(idx+1),lapText:lapText};
+  return {sec:t-t0,label:passLabel(idx+1),lapText:lapText, lapLines:lines};
 }
 
 function updateOverlay(){
   var t=video.currentTime||0;
   clock.textContent=t.toFixed(3);
+  var listEl=document.getElementById('raceLapList');
   var info=raceElapsedAt(t);
   if(!info){
     raceClock.textContent='—';
     raceSub.textContent='未計測（スタートを記録すると表示）';
-    raceLap.textContent='ラップ: —';
+    raceLap.textContent='ラップ秒差';
+    if(listEl) listEl.textContent='—';
     return;
   }
   raceClock.textContent=info.sec.toFixed(3);
   raceSub.textContent=info.label;
-  raceLap.textContent=info.lapText||'ラップ: —';
+  raceLap.textContent='ラップ秒差';
+  if(listEl){
+    if(info.lapLines && info.lapLines.length) listEl.textContent=info.lapLines.join('\n');
+    else listEl.textContent=info.lapText||'—';
+  }
 }
 function updateClockLoop(){
   updateOverlay();
@@ -357,21 +415,22 @@ function updateMainButton(){
 
 function renderLaps(){
   var box=$('lapsList'),arr=activeHits();
-  if(arr.length<2){box.textContent='まだありません（スタート後に秒差が出ます）';return;}
-  var html='';
-  for(var k=1;k<arr.length;k++){
-    html+='<div class="lap-row"><span>'+passLabel(k)+' → '+passLabel(k+1)+'</span><span class="delta">'+(arr[k]-arr[k-1]).toFixed(3)+' 秒</span></div>';
-  }
-  if(arr.length>=needHits()){
-    html+='<div class="lap-row"><span><strong>合計</strong></span><span class="delta"><strong>'+(arr[needHits()-1]-arr[0]).toFixed(3)+' 秒</strong></span></div>';
-  }
-  box.innerHTML=html;
+  if(arr.length<2){box.textContent='まだありません（2周分の通過でラップと前周差が出ます）';return;}
+  box.innerHTML=formatLapRowsHtml(arr);
 }
 function lapDiffHtml(arr){
   if(!arr||arr.length<2)return '—';
-  var parts=[];
+  var parts=[], prevLap=null;
   for(var k=1;k<arr.length;k++){
-    parts.push(passLabel(k)+'→'+passLabel(k+1)+' <span>'+(arr[k]-arr[k-1]).toFixed(3)+'s</span>');
+    var lap=arr[k]-arr[k-1];
+    var s=passLabel(k)+'→'+passLabel(k+1)+' <span>'+lap.toFixed(3)+'s</span>';
+    if(prevLap!=null){
+      var diff=lap-prevLap;
+      var sign=diff>0?'+':'';
+      s+=' <span style="color:#ffd60a">('+sign+diff.toFixed(3)+')</span>';
+    }
+    parts.push(s);
+    prevLap=lap;
   }
   return parts.join('<br>');
 }
@@ -570,18 +629,19 @@ async function exportVideoWithOverlay(){
   if(arr.length>=needHits()) endAt=Math.min(endAt, arr[needHits()-1]+1.0);
 
   var vw=video.videoWidth||1280, vh=video.videoHeight||720;
-  // 鮮明化: 最大でも原寸、小さすぎる場合は2倍まで
+  // 鮮明化: 長辺が1920未満なら拡大（最大3倍、長辺約1920目安）
+  var longSide=Math.max(vw,vh);
   var scale=1;
-  if(Math.max(vw,vh)<900) scale=2;
+  if(longSide<1280) scale=Math.min(3, 1920/longSide);
+  else if(longSide<1600) scale=Math.min(2, 1920/longSide);
+  scale=Math.max(1, scale);
   if(rot===90||rot===-90){ exportCv.width=Math.round(vh*scale); exportCv.height=Math.round(vw*scale); }
   else { exportCv.width=Math.round(vw*scale); exportCv.height=Math.round(vh*scale); }
 
-  // 高品質描画
   exportCtx.imageSmoothingEnabled=true;
-  exportCtx.imageSmoothingQuality='high';
+  if(exportCtx.imageSmoothingQuality) exportCtx.imageSmoothingQuality='high';
 
   await video.play().catch(function(){});
-  // captureStream は再生中に取る
   var canvasStream=exportCv.captureStream(60);
   var mixedStream=canvasStream;
   try{
@@ -599,8 +659,9 @@ async function exportVideoWithOverlay(){
   else if(MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) mime='video/webm;codecs=vp9';
   else if(MediaRecorder.isTypeSupported('video/webm')) mime='video/webm';
 
-  var bits=Math.min(20e6, Math.max(8e6, exportCv.width*exportCv.height*0.12));
-  var recOpts=mime?{mimeType:mime, videoBitsPerSecond:bits, audioBitsPerSecond:192000}:{videoBitsPerSecond:bits};
+  // ビットレートを高めに（解像度に応じて 12〜40Mbps）
+  var bits=Math.min(40e6, Math.max(12e6, exportCv.width*exportCv.height*0.25));
+  var recOpts=mime?{mimeType:mime, videoBitsPerSecond:bits, audioBitsPerSecond:256000}:{videoBitsPerSecond:bits};
   var rec; try{ rec=new MediaRecorder(mixedStream, recOpts);}catch(e){ rec=new MediaRecorder(mixedStream); }
   var chunks=[];
   rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
@@ -629,15 +690,21 @@ async function exportVideoWithOverlay(){
       exportCtx.restore();
 
       var info=raceElapsedAt(t);
-      exportCtx.fillStyle='rgba(0,0,0,0.45)';
-      exportCtx.fillRect(0,0,exportCv.width,Math.max(48,exportCv.height*0.13));
+      var lapLines=(info&&info.lapLines)?info.lapLines:[];
+      var panelH=Math.max(56, exportCv.height*(0.10+Math.min(0.12, lapLines.length*0.028)));
+      exportCtx.fillStyle='rgba(0,0,0,0.5)';
+      exportCtx.fillRect(0,0,exportCv.width,panelH);
       exportCtx.fillStyle='#fff';
-      exportCtx.font='bold '+Math.round(exportCv.height*0.05)+'px sans-serif';
-      exportCtx.fillText(info?info.sec.toFixed(3):'—', 24, Math.round(exportCv.height*0.055));
+      exportCtx.font='bold '+Math.round(exportCv.height*0.048)+'px sans-serif';
+      exportCtx.fillText(info?info.sec.toFixed(3):'—', 24, Math.round(exportCv.height*0.05));
       exportCtx.font='bold '+Math.round(exportCv.height*0.022)+'px sans-serif';
       exportCtx.fillStyle='#d1d5db';
-      exportCtx.fillText(info?info.label:'スタート前', 24, Math.round(exportCv.height*0.09));
-      exportCtx.fillText(info&&info.lapText?info.lapText:'', 24, Math.round(exportCv.height*0.12));
+      exportCtx.fillText(info?info.label:'スタート前', 24, Math.round(exportCv.height*0.085));
+      exportCtx.fillStyle='#6BAFD6';
+      exportCtx.font='bold '+Math.round(exportCv.height*0.02)+'px sans-serif';
+      for(var li=0; li<lapLines.length; li++){
+        exportCtx.fillText(lapLines[li], 24, Math.round(exportCv.height*(0.115+li*0.028)));
+      }
 
       updateOverlay();
       if(video.ended || t>=endAt-0.05){ video.pause(); resolve(); return; }
