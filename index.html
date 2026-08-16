@@ -3,19 +3,20 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>動画レーンタイム計測（色差検知）</title>
-<meta name="description" content="レーン枠内の色変化から通過を検知し、レーン別タイムを計測する試作" />
+<title>動画レーンタイム計測（半自動）</title>
+<meta name="description" content="動画を見ながらレーンボタンで通過を記録し、レーン別タイムを出す簡易ツール" />
 <style>
 :root {
   --bg: #0b0c0f; --panel: #16181d; --border: rgba(255,255,255,0.08);
-  --text: #f3f4f6; --muted: #9ca3af; --blue: #6BAFD6; --green: #34c759; --orange: #ff9f0a;
+  --text: #f3f4f6; --muted: #9ca3af; --blue: #6BAFD6; --green: #34c759;
+  --orange: #ff9f0a; --pink: #e891b0;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body {
   margin: 0; min-height: 100%; background: var(--bg); color: var(--text);
   font-family: "游ゴシック", "Yu Gothic", "Hiragino Sans", "Meiryo", sans-serif;
 }
-.app { max-width: 980px; margin: 0 auto; padding: 12px 12px 40px; }
+.app { max-width: 720px; margin: 0 auto; padding: 12px 12px 36px; }
 h1 {
   margin: 0 0 10px; text-align: center; font-size: 12px; letter-spacing: 0.2em;
   color: #9aa3b2; font-weight: 650;
@@ -28,7 +29,7 @@ h1 {
   margin: 0 0 8px; font-size: 12px; color: var(--muted);
   letter-spacing: 0.06em; font-weight: 700;
 }
-.grid {
+.row {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px; align-items: end;
 }
@@ -37,41 +38,68 @@ input[type="file"], input[type="number"] {
   width: 100%; border: 1px solid #2a2d34; background: #0b0c0f; color: var(--text);
   border-radius: 8px; padding: 9px 10px; font-size: 14px;
 }
-.btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.hint { margin: 8px 0 0; font-size: 11px; line-height: 1.55; color: var(--muted); }
+.stage {
+  background: #000; border-radius: 10px; overflow: hidden;
+}
+video {
+  display: block; width: 100%; height: auto; max-height: 52vh; background: #000;
+}
+.controls {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center;
+}
 button {
-  border: 0; border-radius: 8px; padding: 10px 14px; font-weight: 700; font-size: 13px;
+  border: 0; border-radius: 8px; padding: 12px 14px; font-weight: 700; font-size: 13px;
   cursor: pointer; color: #111;
 }
 .b-blue { background: var(--blue); }
 .b-gray { background: #3a3a3c; color: #fff; }
 .b-green { background: var(--green); }
+.b-pink { background: var(--pink); color: #1c1c1e; }
 button:disabled { opacity: 0.4; cursor: default; }
-.hint { margin: 8px 0 0; font-size: 11px; line-height: 1.55; color: var(--muted); }
-.stage {
-  position: relative; background: #000; border-radius: 10px; overflow: hidden;
-  touch-action: none; user-select: none;
+.time-readout {
+  margin-left: auto; font-variant-numeric: tabular-nums;
+  font-size: 18px; font-weight: 700; color: #fff;
 }
-canvas { display: block; width: 100%; height: auto; }
-.status { margin-top: 8px; min-height: 1.4em; font-size: 12px; color: var(--muted); }
-.status em { color: var(--blue); font-style: normal; font-weight: 700; }
+.lane-grid {
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  margin-top: 4px;
+}
+.lane-btn {
+  min-height: 64px; border-radius: 10px; border: 0; color: #111;
+  font-size: 16px; font-weight: 800; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+.lane-btn:active { transform: scale(0.97); }
+.lane-btn small {
+  display: block; font-size: 11px; font-weight: 600; opacity: 0.85; margin-top: 2px;
+}
+.status { margin-top: 8px; font-size: 12px; color: var(--muted); min-height: 1.3em; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td {
   text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
 }
 th { font-size: 11px; color: var(--muted); font-weight: 600; }
-.dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
 .ok { color: var(--green); font-weight: 700; }
 .wait { color: var(--orange); }
+.dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px;
+}
+.log {
+  max-height: 140px; overflow: auto; font-size: 12px; color: var(--muted);
+  font-variant-numeric: tabular-nums; line-height: 1.5;
+}
 </style>
 </head>
 <body>
 <div class="app">
-  <h1>VIDEO LANE TIMER · COLOR</h1>
+  <h1>VIDEO LANE TIMER · MANUAL</h1>
 
   <div class="card">
-    <h2>1. 動画と条件</h2>
-    <div class="grid">
+    <h2>1. 準備</h2>
+    <div class="row">
       <label style="grid-column:1/-1;">動画
         <input type="file" id="file" accept="video/*" />
       </label>
@@ -81,340 +109,182 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
       <label>周回数
         <input type="number" id="laps" min="1" max="50" value="3" />
       </label>
-      <label>色差の感度（大=鈍感）
-        <input type="number" id="sens" min="5" max="120" value="28" />
-      </label>
-      <label>最短間隔(秒)
-        <input type="number" id="gap" min="0.15" max="5" step="0.05" value="0.6" />
-      </label>
     </div>
     <p class="hint">
-      ラインは使いません。各レーンの<strong>色付き枠の中</strong>で、映像の色が変わった瞬間を通過として数えます。
-      枠はドラッグで位置移動、角でサイズ変更できます。右の枠がレーン1です。
+      動画を再生しながら、車が計測位置を通過した瞬間に<strong>そのレーンのボタン</strong>を押します。
+      各レーンとも「1回目＝スタート、（周回+1）回目＝ゴール」です。右からレーン1です。
     </p>
   </div>
 
   <div class="card">
-    <h2>2. レーン枠の調整と解析</h2>
-    <div class="btns">
-      <button type="button" class="b-gray" id="btnResetLanes">レーン枠を等分に戻す</button>
-      <button type="button" class="b-gray" id="btnPlay">再生/停止</button>
-      <button type="button" class="b-blue" id="btnRun">解析開始</button>
-      <button type="button" class="b-gray" id="btnClear">検知リセット</button>
+    <h2>2. 動画</h2>
+    <div class="stage">
+      <video id="video" playsinline controls></video>
     </div>
-    <div class="stage"><canvas id="cv"></canvas></div>
+    <div class="controls">
+      <button type="button" class="b-blue" id="btnPlay">再生 / 停止</button>
+      <button type="button" class="b-gray" id="btnBack05">-0.5秒</button>
+      <button type="button" class="b-gray" id="btnFwd05">+0.5秒</button>
+      <button type="button" class="b-gray" id="btnClear">記録リセット</button>
+      <div class="time-readout" id="clock">0.000</div>
+    </div>
     <div class="status" id="status">動画を選んでください</div>
   </div>
 
   <div class="card">
-    <h2>3. 各レーンのタイム一覧</h2>
+    <h2>3. 通過ボタン（押した時刻を記録）</h2>
+    <div class="lane-grid" id="laneGrid"></div>
+  </div>
+
+  <div class="card">
+    <h2>4. 各レーンのタイム一覧</h2>
     <table>
-      <thead><tr><th>レーン</th><th>通過</th><th>タイム</th><th>状態</th></tr></thead>
-      <tbody id="tbody"><tr><td colspan="4" style="color:#9ca3af;">未解析</td></tr></tbody>
+      <thead>
+        <tr><th>レーン</th><th>通過回数</th><th>タイム</th><th>状態</th></tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="4" style="color:#9ca3af;">未記録</td></tr>
+      </tbody>
     </table>
+  </div>
+
+  <div class="card">
+    <h2>5. 通過ログ</h2>
+    <div class="log" id="log">まだありません</div>
   </div>
 </div>
 
-<video id="video" playsinline muted style="display:none"></video>
-
 <script>
-/**
- * Color-diff lane timer (no finish line)
- * --------------------------------------
- * Each lane = axis-aligned rect in normalized coords {x,y,w,h}
- * Detect pass when average RGB in the rect shifts vs adaptive baseline.
- * 1st hit = start, (laps+1)th = finish.
- * Lane 1 = rightmost rect.
- */
 (function () {
   'use strict';
 
   var COLORS = ['#6BAFD6', '#e891b0', '#ff9f0a', '#34c759', '#af52de', '#ff3b30', '#64d2ff', '#ffd60a'];
 
   var video = document.getElementById('video');
-  var canvas = document.getElementById('cv');
-  var ctx = canvas.getContext('2d', { willReadFrequently: true });
+  var clock = document.getElementById('clock');
   var statusEl = document.getElementById('status');
+  var laneGrid = document.getElementById('laneGrid');
   var tbody = document.getElementById('tbody');
+  var logEl = document.getElementById('log');
 
-  var App = {
-    ready: false,
-    analyzing: false,
-    lanes: [], // {x,y,w,h} normalized, left→right order
-    hits: [],
-    drag: null
-  };
+  var hits = []; // hits[i] = array of times for lane index i (left→right)
+  var logs = [];
+  var ready = false;
+  var raf = 0;
 
   function $(id) { return document.getElementById(id); }
-  function num(id, d) { var v = parseFloat($(id).value); return isFinite(v) ? v : d; }
-  function laneCount() { return Math.max(1, Math.min(8, Math.round(num('laneN', 3)))); }
-  function lapCount() { return Math.max(1, Math.min(50, Math.round(num('laps', 3)))); }
-  function sens() { return Math.max(5, Math.min(120, num('sens', 28))); }
-  function gapSec() { return Math.max(0.15, Math.min(5, num('gap', 0.6))); }
-  function setStatus(h) { statusEl.innerHTML = h; }
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function laneCount() {
+    return Math.max(1, Math.min(8, parseInt($('laneN').value, 10) || 3));
+  }
+  function lapCount() {
+    return Math.max(1, Math.min(50, parseInt($('laps').value, 10) || 3));
+  }
+  function needHits() { return lapCount() + 1; }
+  function setStatus(t) { statusEl.textContent = t; }
 
-  function resetLanes() {
+  function laneNoFromIndex(i) {
+    // rightmost visual button = lane 1
+    return laneCount() - i;
+  }
+
+  function rebuildButtons() {
     var n = laneCount();
-    App.lanes = [];
-    // place thin horizontal bands across track height mid-area
-    var y = 0.42, h = 0.16;
+    hits = [];
+    for (var i = 0; i < n; i++) hits.push([]);
+    logs = [];
+    laneGrid.innerHTML = '';
+
+    // render left→right, label as right=1
     for (var i = 0; i < n; i++) {
-      var x = i / n + 0.02;
-      var w = 1 / n - 0.04;
-      App.lanes.push({ x: x, y: y, w: Math.max(0.04, w), h: h });
-    }
-    App.hits = App.lanes.map(function () { return []; });
-  }
-
-  function fitCanvas() {
-    if (!video.videoWidth) return;
-    var maxW = canvas.parentElement.clientWidth || 640;
-    var scale = maxW / video.videoWidth;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.style.width = Math.round(video.videoWidth * scale) + 'px';
-    canvas.style.height = Math.round(video.videoHeight * scale) + 'px';
-  }
-
-  function draw() {
-    if (!video.videoWidth) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    var W = canvas.width, H = canvas.height;
-
-    App.lanes.forEach(function (ln, i) {
-      var x = ln.x * W, y = ln.y * H, w = ln.w * W, h = ln.h * H;
+      var no = laneNoFromIndex(i);
       var color = COLORS[i % COLORS.length];
-      ctx.fillStyle = color;
-      ctx.globalAlpha = 0.22;
-      ctx.fillRect(x, y, w, h);
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-      ctx.strokeRect(x, y, w, h);
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'lane-btn';
+      btn.style.background = color;
+      btn.dataset.index = String(i);
+      btn.innerHTML = 'レーン ' + no + '<small>通過</small>';
+      btn.addEventListener('click', onLaneTap);
+      laneGrid.appendChild(btn);
+    }
+    renderTable();
+    renderLog();
+  }
 
-      // corner handles
-      var hs = 8;
-      ctx.fillStyle = color;
-      [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(function (p) {
-        ctx.fillRect(p[0] - hs / 2, p[1] - hs / 2, hs, hs);
-      });
-
-      var laneNo = App.lanes.length - i; // rightmost = 1
-      ctx.font = 'bold 14px sans-serif';
-      ctx.fillStyle = color;
-      ctx.fillText('L' + laneNo, x + 6, y + 18);
+  function onLaneTap(e) {
+    if (!ready) {
+      setStatus('先に動画を選んでください');
+      return;
+    }
+    var i = parseInt(e.currentTarget.dataset.index, 10);
+    var t = video.currentTime || 0;
+    var need = needHits();
+    if (hits[i].length >= need) {
+      setStatus('レーン ' + laneNoFromIndex(i) + ' はすでに完了しています');
+      return;
+    }
+    hits[i].push(Number(t.toFixed(3)));
+    logs.unshift({
+      lane: laneNoFromIndex(i),
+      time: Number(t.toFixed(3)),
+      n: hits[i].length
     });
-  }
-
-  function pointerNorm(evt) {
-    var rect = canvas.getBoundingClientRect();
-    var cx = evt.clientX != null ? evt.clientX : evt.touches[0].clientX;
-    var cy = evt.clientY != null ? evt.clientY : evt.touches[0].clientY;
-    return {
-      x: clamp((cx - rect.left) / rect.width, 0, 1),
-      y: clamp((cy - rect.top) / rect.height, 0, 1)
-    };
-  }
-
-  function hitTest(p) {
-    // corners first (priority), then body
-    for (var i = App.lanes.length - 1; i >= 0; i--) {
-      var ln = App.lanes[i];
-      var corners = [
-        { name: 'tl', x: ln.x, y: ln.y },
-        { name: 'tr', x: ln.x + ln.w, y: ln.y },
-        { name: 'bl', x: ln.x, y: ln.y + ln.h },
-        { name: 'br', x: ln.x + ln.w, y: ln.y + ln.h }
-      ];
-      for (var c = 0; c < corners.length; c++) {
-        var k = corners[c];
-        if (Math.abs(p.x - k.x) < 0.035 && Math.abs(p.y - k.y) < 0.04) {
-          return { type: 'corner', i: i, corner: k.name };
-        }
-      }
+    renderTable();
+    renderLog();
+    var left = need - hits[i].length;
+    if (left <= 0) {
+      var sec = (hits[i][need - 1] - hits[i][0]).toFixed(3);
+      setStatus('レーン ' + laneNoFromIndex(i) + ' 完了：' + sec + ' 秒');
+    } else {
+      setStatus('レーン ' + laneNoFromIndex(i) + ' 通過 ' + hits[i].length + ' / ' + need + '（' + t.toFixed(3) + 's）');
     }
-    for (var j = App.lanes.length - 1; j >= 0; j--) {
-      var L = App.lanes[j];
-      if (p.x >= L.x && p.x <= L.x + L.w && p.y >= L.y && p.y <= L.y + L.h) {
-        return {
-          type: 'move', i: j,
-          ox: p.x, oy: p.y,
-          bx: L.x, by: L.y
-        };
-      }
-    }
-    return null;
-  }
-
-  function onDown(e) {
-    if (!App.ready) return;
-    e.preventDefault();
-    App.drag = hitTest(pointerNorm(e));
-  }
-  function onMove(e) {
-    if (!App.drag) return;
-    e.preventDefault();
-    var p = pointerNorm(e);
-    var ln = App.lanes[App.drag.i];
-    if (App.drag.type === 'move') {
-      var dx = p.x - App.drag.ox;
-      var dy = p.y - App.drag.oy;
-      ln.x = clamp(App.drag.bx + dx, 0, 1 - ln.w);
-      ln.y = clamp(App.drag.by + dy, 0, 1 - ln.h);
-    } else if (App.drag.type === 'corner') {
-      var r = { x0: ln.x, y0: ln.y, x1: ln.x + ln.w, y1: ln.y + ln.h };
-      if (App.drag.corner.indexOf('t') >= 0) r.y0 = p.y;
-      if (App.drag.corner.indexOf('b') >= 0) r.y1 = p.y;
-      if (App.drag.corner.indexOf('l') >= 0) r.x0 = p.x;
-      if (App.drag.corner.indexOf('r') >= 0) r.x1 = p.x;
-      var nx0 = Math.min(r.x0, r.x1), nx1 = Math.max(r.x0, r.x1);
-      var ny0 = Math.min(r.y0, r.y1), ny1 = Math.max(r.y0, r.y1);
-      if (nx1 - nx0 < 0.03) nx1 = nx0 + 0.03;
-      if (ny1 - ny0 < 0.03) ny1 = ny0 + 0.03;
-      ln.x = clamp(nx0, 0, 0.97);
-      ln.y = clamp(ny0, 0, 0.97);
-      ln.w = clamp(nx1 - ln.x, 0.03, 1 - ln.x);
-      ln.h = clamp(ny1 - ln.y, 0.03, 1 - ln.y);
-    }
-    draw();
-  }
-  function onUp() { App.drag = null; }
-
-  canvas.addEventListener('mousedown', onDown);
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('mouseup', onUp);
-  canvas.addEventListener('touchstart', onDown, { passive: false });
-  window.addEventListener('touchmove', onMove, { passive: false });
-  window.addEventListener('touchend', onUp);
-
-  /** Average RGB in lane rect (subsampled) */
-  function sampleColor(ln) {
-    var W = canvas.width, H = canvas.height;
-    var x = Math.round(ln.x * W);
-    var y = Math.round(ln.y * H);
-    var w = Math.max(2, Math.round(ln.w * W));
-    var h = Math.max(2, Math.round(ln.h * H));
-    if (x + w > W) w = W - x;
-    if (y + h > H) h = H - y;
-    if (w < 2 || h < 2) return { r: 0, g: 0, b: 0 };
-    var img = ctx.getImageData(x, y, w, h).data;
-    var step = Math.max(4, Math.floor((w * h) / 80)) * 4;
-    var r = 0, g = 0, b = 0, n = 0;
-    for (var i = 0; i < img.length; i += step) {
-      r += img[i]; g += img[i + 1]; b += img[i + 2];
-      n++;
-    }
-    if (!n) return { r: 0, g: 0, b: 0 };
-    return { r: r / n, g: g / n, b: b / n };
-  }
-
-  function colorDist(a, b) {
-    var dr = a.r - b.r, dg = a.g - b.g, db = a.b - b.b;
-    return Math.sqrt(dr * dr + dg * dg + db * db);
   }
 
   function renderTable() {
-    var need = lapCount() + 1;
-    var n = App.lanes.length;
+    var n = laneCount();
+    var need = needHits();
     if (!n) {
-      tbody.innerHTML = '<tr><td colspan="4" style="color:#9ca3af;">未解析</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" style="color:#9ca3af;">未記録</td></tr>';
       return;
     }
     var html = '';
     for (var i = 0; i < n; i++) {
-      var no = n - i;
-      var hits = App.hits[i] || [];
+      var no = laneNoFromIndex(i);
+      var arr = hits[i] || [];
       var color = COLORS[i % COLORS.length];
       var time = '—', st = '待ち', cls = 'wait';
-      if (hits.length >= need) {
-        time = (hits[need - 1] - hits[0]).toFixed(3) + ' 秒';
-        st = '完了'; cls = 'ok';
-      } else if (hits.length) {
-        time = '計測中'; st = hits.length + ' / ' + need;
+      if (arr.length >= need) {
+        time = (arr[need - 1] - arr[0]).toFixed(3) + ' 秒';
+        st = '完了';
+        cls = 'ok';
+      } else if (arr.length) {
+        time = '計測中';
+        st = arr.length + ' / ' + need;
       }
-      html += '<tr><td><span class="dot" style="background:' + color + '"></span>レーン ' + no +
-        '</td><td>' + hits.length + '</td><td class="' + cls + '">' + time +
-        '</td><td class="' + cls + '">' + st + '</td></tr>';
+      html += '<tr>' +
+        '<td><span class="dot" style="background:' + color + '"></span>レーン ' + no + '</td>' +
+        '<td>' + arr.length + '</td>' +
+        '<td class="' + cls + '">' + time + '</td>' +
+        '<td class="' + cls + '">' + st + '</td></tr>';
     }
     tbody.innerHTML = html;
   }
 
-  function waitSeek() {
-    return new Promise(function (resolve) {
-      var done = false;
-      function fin() {
-        if (done) return; done = true;
-        video.removeEventListener('seeked', fin);
-        resolve();
-      }
-      video.addEventListener('seeked', fin);
-      setTimeout(fin, 90);
-    });
-  }
-  function tick() { return new Promise(function (r) { requestAnimationFrame(function () { r(); }); }); }
-
-  async function analyze() {
-    if (!App.ready || App.analyzing) return;
-    App.analyzing = true;
-    App.hits = App.lanes.map(function () { return []; });
-    $('btnRun').disabled = true;
-    video.pause();
-
-    var duration = video.duration || 0;
-    var step = 1 / 30;
-    var need = lapCount() + 1;
-    var S = sens();
-    var G = gapSec();
-    var base = App.lanes.map(function () { return null; });
-    var last = App.lanes.map(function () { return -999; });
-
-    setStatus('解析中… <em>0%</em>');
-    video.currentTime = 0;
-    await waitSeek();
-    draw();
-    App.lanes.forEach(function (ln, i) { base[i] = sampleColor(ln); });
-
-    for (var t = step; t < duration; t += step) {
-      video.currentTime = t;
-      await waitSeek();
-      draw();
-
-      App.lanes.forEach(function (ln, i) {
-        if (App.hits[i].length >= need) return;
-        var c = sampleColor(ln);
-        if (!base[i]) { base[i] = c; return; }
-        var d = colorDist(c, base[i]);
-        if (d < S * 0.4) {
-          // calm: slow adapt baseline to lighting drift
-          base[i] = {
-            r: base[i].r * 0.92 + c.r * 0.08,
-            g: base[i].g * 0.92 + c.g * 0.08,
-            b: base[i].b * 0.92 + c.b * 0.08
-          };
-          return;
-        }
-        if (d >= S && (t - last[i]) >= G) {
-          App.hits[i].push(+t.toFixed(3));
-          last[i] = t;
-          base[i] = c;
-        }
-      });
-
-      if (Math.floor(t * 10) % 5 === 0) {
-        setStatus('解析中… <em>' + Math.min(99, Math.round(t / duration * 100)) + '%</em>');
-        renderTable();
-        await tick();
-      }
+  function renderLog() {
+    if (!logs.length) {
+      logEl.textContent = 'まだありません';
+      return;
     }
+    logEl.innerHTML = logs.slice(0, 40).map(function (x) {
+      return 'L' + x.lane + '  #' + x.n + '  @ ' + x.time.toFixed(3) + 's';
+    }).join('<br>');
+  }
 
-    renderTable();
-    setStatus('解析完了（必要通過 ' + need + ' 回）');
-    App.analyzing = false;
-    $('btnRun').disabled = false;
-    video.currentTime = 0;
-    await waitSeek();
-    draw();
+  function updateClock() {
+    clock.textContent = (video.currentTime || 0).toFixed(3);
+    if (!video.paused && !video.ended) {
+      raf = requestAnimationFrame(updateClock);
+    }
   }
 
   $('file').addEventListener('change', function (e) {
@@ -422,59 +292,65 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     if (!f) return;
     video.src = URL.createObjectURL(f);
     video.onloadedmetadata = function () {
-      App.ready = true;
-      resetLanes();
-      fitCanvas();
-      video.currentTime = 0;
-      setTimeout(function () { draw(); }, 40);
-      setStatus('動画準備完了。各色枠をレーン位置に合わせてから解析してください');
-      renderTable();
+      ready = true;
+      rebuildButtons();
+      setStatus('準備完了。再生しながら通過ボタンを押してください（' + video.duration.toFixed(1) + '秒）');
+      clock.textContent = '0.000';
     };
   });
 
   $('laneN').addEventListener('change', function () {
-    resetLanes();
-    if (App.ready) draw();
+    rebuildButtons();
+    setStatus('レーン数を更新しました');
+  });
+  $('laps').addEventListener('change', function () {
     renderTable();
-  });
-  $('btnResetLanes').addEventListener('click', function () {
-    resetLanes();
-    if (App.ready) draw();
-    renderTable();
-    setStatus('レーン枠を等分に戻しました');
-  });
-  $('btnPlay').addEventListener('click', function () {
-    if (!App.ready) return;
-    if (video.paused) {
-      video.play();
-      (function loop() {
-        if (video.paused || video.ended) { draw(); return; }
-        draw();
-        requestAnimationFrame(loop);
-      })();
-    } else video.pause();
-  });
-  $('btnClear').addEventListener('click', function () {
-    App.hits = App.lanes.map(function () { return []; });
-    renderTable();
-    setStatus('検知をリセットしました');
-  });
-  $('btnRun').addEventListener('click', function () {
-    analyze().catch(function (err) {
-      console.error(err);
-      App.analyzing = false;
-      $('btnRun').disabled = false;
-      setStatus('解析エラー: ' + (err && err.message ? err.message : err));
-    });
-  });
-  window.addEventListener('resize', function () {
-    if (!App.ready) return;
-    fitCanvas();
-    draw();
+    setStatus('周回数を更新（必要通過 ' + needHits() + ' 回）');
   });
 
-  resetLanes();
-  renderTable();
+  $('btnPlay').addEventListener('click', function () {
+    if (!ready) return;
+    if (video.paused) {
+      video.play();
+      cancelAnimationFrame(raf);
+      updateClock();
+    } else {
+      video.pause();
+      cancelAnimationFrame(raf);
+      updateClock();
+    }
+  });
+  video.addEventListener('play', function () {
+    cancelAnimationFrame(raf);
+    updateClock();
+  });
+  video.addEventListener('pause', function () {
+    cancelAnimationFrame(raf);
+    updateClock();
+  });
+  video.addEventListener('timeupdate', function () {
+    if (video.paused) clock.textContent = (video.currentTime || 0).toFixed(3);
+  });
+
+  $('btnBack05').addEventListener('click', function () {
+    if (!ready) return;
+    video.currentTime = Math.max(0, (video.currentTime || 0) - 0.5);
+    clock.textContent = video.currentTime.toFixed(3);
+  });
+  $('btnFwd05').addEventListener('click', function () {
+    if (!ready) return;
+    video.currentTime = Math.min(video.duration || 0, (video.currentTime || 0) + 0.5);
+    clock.textContent = video.currentTime.toFixed(3);
+  });
+  $('btnClear').addEventListener('click', function () {
+    hits = hits.map(function () { return []; });
+    logs = [];
+    renderTable();
+    renderLog();
+    setStatus('記録をリセットしました');
+  });
+
+  rebuildButtons();
 })();
 </script>
 </body>
