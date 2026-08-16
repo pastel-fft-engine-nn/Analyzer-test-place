@@ -131,11 +131,53 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
 .b-gray { background: #3a3a3c; color: #fff; }
 .b-green { background: var(--green); color: #0b0c0f; }
 button:disabled { opacity: 0.45; cursor: default; }
+
+.title-row {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin: 0 0 10px;
+}
+.title-row span {
+  font-size: 12px; letter-spacing: 0.2em; color: #9aa3b2; font-weight: 650;
+}
+.help-btn {
+  width: 28px; height: 28px; border-radius: 50%; border: 1px solid #3a3a3c;
+  background: #1c1c1e; color: #6BAFD6; font-weight: 900; font-size: 14px;
+  cursor: pointer; line-height: 1; padding: 0;
+}
+.help-sheet {
+  display: none; position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,0.55); align-items: flex-end; justify-content: center;
+}
+.help-sheet.show { display: flex; }
+.help-panel {
+  width: min(520px, 100%); max-height: 80vh; overflow: auto;
+  background: #1c1c1e; border-radius: 16px 16px 0 0; padding: 16px 16px 24px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.help-panel h3 { margin: 0 0 10px; font-size: 16px; }
+.help-panel p, .help-panel li {
+  font-size: 13px; line-height: 1.6; color: #d1d5db; margin: 0 0 8px;
+}
+.help-panel ul { padding-left: 1.2em; margin: 0 0 10px; }
+.help-close {
+  width: 100%; margin-top: 12px; border: 0; border-radius: 8px; padding: 12px;
+  background: #3a3a3c; color: #fff; font-weight: 800; cursor: pointer;
+}
+.orient-choices { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.orient-choices button {
+  border: 0; border-radius: 8px; padding: 12px; font-weight: 800; cursor: pointer;
+  background: #2c2c2e; color: #fff; font-size: 13px;
+}
+.orient-choices button:active { filter: brightness(1.1); }
+
 </style>
 </head>
 <body>
 <div class="app">
-  <h1>VIDEO LANE TIMER</h1>
+  <h1 class="title-row">
+    <span>VIDEO LANE TIMER</span>
+    <button type="button" class="help-btn" id="btnHelp" title="説明" aria-label="説明">?</button>
+  </h1>
 
   <div class="card">
     <h2>1. 準備</h2>
@@ -153,11 +195,6 @@ button:disabled { opacity: 0.45; cursor: default; }
         <input type="number" id="laps" min="1" max="50" value="3" />
       </label>
     </div>
-    <p class="hint">
-      長いボタン1つで「再生 → スタート → 1周終了 → … → ゴール」。<br>
-      記録した通過時刻に合わせて、動画上にレース秒数が同期表示されます。<br>
-      1回目→スタート、2回目→1周終了、3回目→2周終了、4回目→3周終了（ゴール）。
-    </p>
   </div>
 
   <div class="card">
@@ -167,13 +204,12 @@ button:disabled { opacity: 0.45; cursor: default; }
       <div class="overlay" id="overlay">
         <div class="race-clock" id="raceClock">—</div>
         <div class="race-sub" id="raceSub">スタート前</div>
+        <div class="race-sub" id="raceLap">ラップ: —</div>
       </div>
     </div>
     <div class="tools">
       <button type="button" id="btnReplay">再度再生</button>
       <button type="button" id="btnPlayReset">再生リセット</button>
-      <button type="button" id="btnBack">-0.5秒</button>
-      <button type="button" id="btnFwd">+0.5秒</button>
       <button type="button" id="btnResetLane">記録を消す</button>
     </div>
     <div class="clock-row">
@@ -306,33 +342,52 @@ button:disabled { opacity: 0.45; cursor: default; }
     if (!arr.length) return null;
     var t0 = arr[0];
     var need = needHits();
-    if (t < t0) return { sec: 0, phase: 'before', label: 'スタート前' };
+    if (t < t0) {
+      return { sec: 0, phase: 'before', label: 'スタート前', lapText: 'ラップ: —' };
+    }
     if (arr.length >= need && t >= arr[need - 1]) {
+      var total = arr[need - 1] - t0;
+      var lastDelta = arr.length >= 2 ? (arr[need - 1] - arr[need - 2]) : 0;
       return {
-        sec: arr[need - 1] - t0,
+        sec: total,
         phase: 'done',
-        label: 'ゴール ' + (arr[need - 1] - t0).toFixed(3) + 's'
+        label: 'ゴール ' + total.toFixed(3) + 's',
+        lapText: '最終ラップ差 ' + lastDelta.toFixed(3) + 's'
       };
     }
-    // which segment
-    var label = 'レース中';
+    // current segment: find last pass index reached
+    var idx = 0;
     for (var i = 0; i < arr.length; i++) {
-      if (t >= arr[i]) label = passLabel(i + 1);
+      if (t >= arr[i]) idx = i;
     }
-    return { sec: t - t0, phase: 'run', label: label };
+    var label = passLabel(idx + 1);
+    var lapText = 'ラップ: —';
+    if (idx >= 1) {
+      // in-progress lap from pass idx to next, show elapsed in current lap + completed lap delta
+      var lapElapsed = t - arr[idx];
+      var prevDelta = arr[idx] - arr[idx - 1];
+      lapText = '現在ラップ ' + lapElapsed.toFixed(3) + 's / 前区間 ' + prevDelta.toFixed(3) + 's';
+    } else {
+      // after start, before 1周終了
+      lapText = 'スタート後 ' + (t - t0).toFixed(3) + 's';
+    }
+    return { sec: t - t0, phase: 'run', label: label, lapText: lapText };
   }
 
   function updateOverlay() {
     var t = video.currentTime || 0;
     clock.textContent = t.toFixed(3);
+    var raceLap = document.getElementById('raceLap');
     var info = raceElapsedAt(t);
     if (!info) {
       raceClock.textContent = '—';
       raceSub.textContent = '未計測（スタートを記録すると表示）';
+      if (raceLap) raceLap.textContent = 'ラップ: —';
       return;
     }
     raceClock.textContent = info.sec.toFixed(3);
     raceSub.textContent = info.label;
+    if (raceLap) raceLap.textContent = info.lapText || 'ラップ: —';
   }
 
   function updateClockLoop() {
@@ -579,12 +634,30 @@ button:disabled { opacity: 0.45; cursor: default; }
     $('saveStatus').textContent = 'JSONをダウンロードしました';
   }
 
+  function askOrientation() {
+    return new Promise(function (resolve) {
+      var m = document.getElementById('orientModal');
+      m.classList.add('show');
+      function cleanup(val) {
+        m.classList.remove('show');
+        m.onclick = null;
+        resolve(val);
+      }
+      m.onclick = function (e) {
+        var btn = e.target.closest('button');
+        if (!btn) return;
+        if (btn.id === 'orientCancel') return cleanup(null);
+        if (btn.dataset && btn.dataset.rot != null) return cleanup(parseInt(btn.dataset.rot, 10));
+      };
+    });
+  }
+
   /** 秒数オーバーレイ入り動画を MediaRecorder で書き出し */
   async function exportVideoWithOverlay() {
     if (!state.ready || state.exporting) return;
     var arr = activeHits();
     if (!arr.length) {
-      $('saveStatus').textContent = '先にスタート（1回目）を記録してください';
+      $('saveStatus').textContent = '先にスタートを記録してください';
       return;
     }
     if (typeof MediaRecorder === 'undefined') {
@@ -592,20 +665,31 @@ button:disabled { opacity: 0.45; cursor: default; }
       return;
     }
 
+    var rot = await askOrientation();
+    if (rot == null) {
+      $('saveStatus').textContent = '書き出しをキャンセルしました';
+      return;
+    }
+
     state.exporting = true;
     updateMainButton();
-    $('saveStatus').textContent = '秒数入り動画を書き出し中…';
+    $('saveStatus').textContent = '秒数入り動画を書き出し中…（完了後ダウンロードへ保存）';
     $('btnExportVideo').disabled = true;
 
-    var wasPaused = video.paused;
     var startAt = 0;
     var endAt = video.duration || 0;
-    // 可能ならスタート少し前〜ゴール少し後
     startAt = Math.max(0, arr[0] - 0.5);
     if (arr.length >= needHits()) endAt = Math.min(endAt, arr[needHits() - 1] + 1.0);
 
-    exportCv.width = video.videoWidth || 1280;
-    exportCv.height = video.videoHeight || 720;
+    var vw = video.videoWidth || 1280;
+    var vh = video.videoHeight || 720;
+    if (rot === 90 || rot === -90) {
+      exportCv.width = vh;
+      exportCv.height = vw;
+    } else {
+      exportCv.width = vw;
+      exportCv.height = vh;
+    }
     var stream = exportCv.captureStream(30);
     var mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
       ? 'video/webm;codecs=vp9'
@@ -630,17 +714,31 @@ button:disabled { opacity: 0.45; cursor: default; }
     await new Promise(function (resolve) {
       function frame() {
         var t = video.currentTime || 0;
-        // draw frame + overlay
-        exportCtx.drawImage(video, 0, 0, exportCv.width, exportCv.height);
+        exportCtx.save();
+        exportCtx.clearRect(0, 0, exportCv.width, exportCv.height);
+        if (rot === 90) {
+          exportCtx.translate(exportCv.width, 0);
+          exportCtx.rotate(Math.PI / 2);
+          exportCtx.drawImage(video, 0, 0, vw, vh);
+        } else if (rot === -90) {
+          exportCtx.translate(0, exportCv.height);
+          exportCtx.rotate(-Math.PI / 2);
+          exportCtx.drawImage(video, 0, 0, vw, vh);
+        } else {
+          exportCtx.drawImage(video, 0, 0, exportCv.width, exportCv.height);
+        }
+        exportCtx.restore();
+
         var info = raceElapsedAt(t);
         exportCtx.fillStyle = 'rgba(0,0,0,0.45)';
-        exportCtx.fillRect(0, 0, exportCv.width, Math.max(64, exportCv.height * 0.14));
+        exportCtx.fillRect(0, 0, exportCv.width, Math.max(64, exportCv.height * 0.16));
         exportCtx.fillStyle = '#fff';
         exportCtx.font = 'bold ' + Math.round(exportCv.height * 0.07) + 'px sans-serif';
-        exportCtx.fillText(info ? info.sec.toFixed(3) : '—', 24, Math.round(exportCv.height * 0.09));
-        exportCtx.font = 'bold ' + Math.round(exportCv.height * 0.03) + 'px sans-serif';
+        exportCtx.fillText(info ? info.sec.toFixed(3) : '—', 24, Math.round(exportCv.height * 0.08));
+        exportCtx.font = 'bold ' + Math.round(exportCv.height * 0.028) + 'px sans-serif';
         exportCtx.fillStyle = '#d1d5db';
-        exportCtx.fillText(info ? info.label : 'スタート前', 24, Math.round(exportCv.height * 0.125));
+        exportCtx.fillText(info ? info.label : 'スタート前', 24, Math.round(exportCv.height * 0.115));
+        exportCtx.fillText(info && info.lapText ? info.lapText : '', 24, Math.round(exportCv.height * 0.15));
 
         updateOverlay();
         if (video.ended || t >= endAt - 0.05) {
@@ -668,10 +766,7 @@ button:disabled { opacity: 0.45; cursor: default; }
     state.exporting = false;
     $('btnExportVideo').disabled = false;
     updateMainButton();
-    $('saveStatus').textContent = '秒数入り動画を保存しました（WebM）';
-    if (!wasPaused) {
-      // leave paused at end
-    }
+    $('saveStatus').textContent = 'ダウンロードへ保存しました';
     updateOverlay();
   }
 
@@ -761,17 +856,7 @@ button:disabled { opacity: 0.45; cursor: default; }
     updateMainButton();
     setStatus('再生位置を先頭に戻しました（記録は残っています）');
   });
-  $('btnBack').addEventListener('click', function () {
-    if (!state.ready) return;
-    video.currentTime = Math.max(0, (video.currentTime || 0) - 0.5);
-    updateOverlay();
-  });
-  $('btnFwd').addEventListener('click', function () {
-    if (!state.ready) return;
-    video.currentTime = Math.min(video.duration || 0, (video.currentTime || 0) + 0.5);
-    updateOverlay();
-  });
-  $('btnResetLane').addEventListener('click', function () {
+$('btnResetLane').addEventListener('click', function () {
     ensureHitsSize();
     state.hits[activeIndex()] = [];
     state.phase = 'idle';
@@ -818,11 +903,56 @@ button:disabled { opacity: 0.45; cursor: default; }
     if (video.paused) updateOverlay();
   });
 
+  if ($('btnHelp')) {
+    $('btnHelp').addEventListener('click', function () {
+      document.getElementById('helpSheet').classList.add('show');
+    });
+  }
+  if ($('helpClose')) {
+    $('helpClose').addEventListener('click', function () {
+      document.getElementById('helpSheet').classList.remove('show');
+    });
+  }
+  document.getElementById('helpSheet').addEventListener('click', function (e) {
+    if (e.target === this) this.classList.remove('show');
+  });
+
   rebuildLaneSelect();
   ensureHitsSize();
   updateMainButton();
   renderTable();
 })();
 </script>
+
+<div class="help-sheet" id="helpSheet" aria-hidden="true">
+  <div class="help-panel">
+    <h3>使い方</h3>
+    <p>長いボタン1つで「再生 → スタート → 1周終了 → … → ゴール」。</p>
+    <p>記録した通過時刻に合わせて、動画上にレース秒数が同期表示されます。</p>
+    <ul>
+      <li>1回目→スタート</li>
+      <li>2回目→1周終了</li>
+      <li>3回目→2周終了</li>
+      <li>4回目→3周終了（ゴール）</li>
+    </ul>
+    <p>秒数入り動画（WebM）は、書き出し後に端末の<strong>ダウンロード</strong>へ保存されます。</p>
+    <p><strong>iPhoneについて：</strong> WebM は標準の写真アプリでは再生できないことが多いです。再生する場合は <strong>VLC</strong> などの対応アプリを使用してください。</p>
+    <button type="button" class="help-close" id="helpClose">閉じる</button>
+  </div>
+</div>
+
+<div class="modal" id="orientModal" aria-hidden="true">
+  <div class="modal-card">
+    <div class="title">書き出しの向き</div>
+    <div class="sub">横動画の見え方を選んでください</div>
+    <div class="orient-choices">
+      <button type="button" data-rot="0">現状のまま</button>
+      <button type="button" data-rot="90">90度回転</button>
+      <button type="button" data-rot="-90">-90度回転</button>
+      <button type="button" id="orientCancel" style="background:#3a3a3c;">キャンセル</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
