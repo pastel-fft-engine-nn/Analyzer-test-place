@@ -1,1346 +1,557 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>RPM Analyzer</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <style>
-    :root {
-      --bg: #f5f7fc;
-      --card-bg: #ffffff;
-      --accent-blue: #1f7aff;
-      --accent-red: #ff4b4b;
-      --accent-gray: #cfd3dd;
-      --text-main: #1b1e27;
-      --text-sub: #7b8190;
-      --border-soft: #e1e4ee;
-      --radius-lg: 18px;
-      --radius-md: 14px;
-      --shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.06);
-    }
-
-    * {
-      box-sizing: border-box;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
-        "Helvetica Neue", Arial, sans-serif;
-    }
-
-    body {
-      margin: 0;
-      padding: 0;
-      background: radial-gradient(circle at top, #ffffff 0, #eef2fb 45%, #e3e7f7 100%);
-      color: var(--text-main);
-    }
-
-    .app-shell {
-      max-width: 480px;
-      margin: 0 auto;
-      padding: 16px 12px 20px;
-    }
-
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 16px;
-    }
-
-    .app-title {
-      font-size: 1.2rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-    }
-
-    .header-right {
-      display: flex;
-      gap: 8px;
-    }
-
-    .icon-button {
-      width: 38px;
-      height: 38px;
-      border-radius: 999px;
-      border: 1px solid var(--border-soft);
-      background: var(--card-bg);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: transform 0.1s ease, box-shadow 0.1s ease;
-    }
-
-    .icon-button:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.08);
-    }
-
-    .icon-button span {
-      font-size: 1.1rem;
-    }
-
-    .card {
-      background: var(--card-bg);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-soft);
-      padding: 14px 14px 16px;
-      border: 1px solid rgba(255, 255, 255, 0.9);
-      margin-bottom: 14px;
-    }
-
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      margin-bottom: 10px;
-    }
-
-    .card-title {
-      font-size: 0.9rem;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-    }
-
-    .card-caption {
-      font-size: 0.75rem;
-      color: var(--text-sub);
-    }
-
-    .wave-container {
-      background: radial-gradient(circle at top, #ffffff 0, #e3e9ff 60%, #d6defa 100%);
-      border-radius: var(--radius-md);
-      padding: 8px 10px 10px;
-      border: 1px solid #dde3f5;
-      position: relative;
-      overflow: hidden;
-      margin-bottom: 8px;
-    }
-
-    .wave-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 4px;
-      font-size: 0.8rem;
-      color: var(--text-sub);
-    }
-
-    canvas#spectrum {
-      width: 100%;
-      height: 110px;
-      border-radius: 12px;
-      background: radial-gradient(circle at top, #ffffff 0, #e3e9ff 60%, #d6defa 100%);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8);
-    }
-
-    .realtime-stats {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 6px;
-      font-size: 0.8rem;
-      margin-bottom: 4px;
-    }
-
-    .stat-block {
-      background: #f6f7fc;
-      border-radius: 12px;
-      padding: 6px 8px;
-      border: 1px solid #e3e6f4;
-    }
-
-    .stat-label {
-      color: var(--text-sub);
-      margin-bottom: 2px;
-      font-size: 0.75rem;
-    }
-
-    .stat-value {
-      font-weight: 600;
-      font-size: 0.9rem;
-      text-align: right;
-      color: rgba(255, 120, 160, 0.85);
-    }
-
-    .realtime-center {
-      text-align: center;
-      margin: 6px 0 10px;
-      font-size: 0.8rem;
-      color: var(--accent-blue);
-      letter-spacing: 0.12em;
-    }
-
-    .realtime-center span {
-      font-weight: 600;
-    }
-
-    .realtime-buttons {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 8px;
-    }
-
-    .primary-btn,
-    .secondary-btn {
-      border-radius: 999px;
-      padding: 8px 0;
-      font-size: 0.8rem;
-      font-weight: 600;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
-      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease;
-    }
-
-    .primary-btn.blue {
-      background: linear-gradient(135deg, #2a8bff, #1f7aff);
-      color: #ffffff;
-    }
-
-    .primary-btn.red {
-      background: linear-gradient(135deg, #ff6b6b, #ff4b4b);
-      color: #ffffff;
-    }
-
-    .secondary-btn.gray {
-      background: #eef1f8;
-      color: #4b5160;
-    }
-
-    .secondary-btn.outline {
-      background: #ffffff;
-      color: var(--accent-blue);
-      border: 1px solid #c9d5ff;
-    }
-
-    .primary-btn:hover,
-    .secondary-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 12px 26px rgba(0, 0, 0, 0.08);
-    }
-
-    .settings-row {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-top: 6px;
-    }
-
-    .setting-item {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-size: 0.8rem;
-    }
-
-    .setting-label {
-      color: var(--text-sub);
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-    }
-
-    .setting-value {
-      font-size: 0.75rem;
-      color: var(--accent-blue);
-    }
-
-    input[type="range"] {
-      width: 100%;
-      -webkit-appearance: none;
-      height: 6px;
-      border-radius: 999px;
-      background: #e3e7f5;
-      outline: none;
-    }
-
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #ffffff;
-      border: 2px solid var(--accent-blue);
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
-      cursor: pointer;
-    }
-
-    input[type="range"]::-moz-range-thumb {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #ffffff;
-      border: 2px solid var(--accent-blue);
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
-      cursor: pointer;
-    }
-
-    .table-wrapper {
-      margin-top: 6px;
-      border-radius: var(--radius-md);
-      border: 1px solid #dde2f2;
-      overflow-x: auto;
-      overflow-y: auto;
-      max-height: 260px;
-      background: #f9fbff;
-    }
-
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      min-width: 640px;
-      font-size: 0.8rem;
-    }
-
-    thead {
-      background: #e6ecff;
-      position: sticky;
-      top: 0;
-      z-index: 3;
-    }
-
-    th,
-    td {
-      padding: 6px 8px;
-      border-bottom: 1px solid #dde2f2;
-      text-align: right;
-      white-space: nowrap;
-    }
-
-    th:first-child,
-    th:nth-child(2),
-    td:first-child,
-    td:nth-child(2) {
-      position: sticky;
-      left: 0;
-      background: #f3f6ff;
-      z-index: 2;
-      text-align: left;
-    }
-
-    th:first-child {
-      min-width: 70px;
-    }
-
-    th:nth-child(2) {
-      min-width: 70px;
-    }
-
-    tbody tr:nth-child(even) {
-      background: #f5f7ff;
-    }
-
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.18);
-      display: none;
-      align-items: flex-end;
-      justify-content: center;
-      z-index: 20;
-    }
-
-    .modal {
-      width: 100%;
-      max-width: 480px;
-      background: #f5f7fc;
-      border-radius: 18px 18px 0 0;
-      box-shadow: 0 -10px 26px rgba(0, 0, 0, 0.18);
-      padding: 14px 12px 20px;
-    }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .modal-title {
-      font-size: 0.9rem;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-    }
-
-    .modal-close {
-      border: none;
-      background: transparent;
-      font-size: 1.2rem;
-      cursor: pointer;
-    }
-
-    .history-list {
-      border-radius: var(--radius-md);
-      border: 1px solid #c7d6ff;
-      background: #f5f8ff;
-      max-height: 260px;
-      overflow-y: auto;
-      font-size: 0.75rem;
-      padding: 4px 4px;
-    }
-
-    .history-row {
-      padding: 4px 6px;
-      border-bottom: 1px solid #dde2f2;
-    }
-
-    .history-row:nth-child(even) {
-      background: #f0f4ff;
-    }
-
-    .history-row-top {
-      display: grid;
-      grid-template-columns: 60px 80px 70px 60px 90px;
-      column-gap: 4px;
-      row-gap: 2px;
-      align-items: center;
-    }
-
-    .history-row-bottom {
-      display: grid;
-      grid-template-columns: 80px 70px 70px 40px;
-      column-gap: 4px;
-      row-gap: 2px;
-      align-items: center;
-      margin-top: 2px;
-    }
-
-    .history-row-top span,
-    .history-row-bottom span {
-      text-align: right;
-    }
-
-    .history-row-top span:first-child {
-      text-align: left;
-    }
-
-    .history-row-top span:nth-child(2) {
-      text-align: left;
-    }
-
-    .history-row-top span:nth-child(3) {
-      text-align: left;
-    }
-
-    .delete-btn {
-      width: 26px;
-      height: 26px;
-      border-radius: 999px;
-      border: none;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.9rem;
-      background: #ffe5e5;
-      color: #ff4b4b;
-    }
-
-    .delete-btn:hover {
-      background: #ffd0d0;
-    }
-
-    .history-filters {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 4px;
-      margin-bottom: 6px;
-      font-size: 0.75rem;
-    }
-
-    .filter-group {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      color: var(--text-sub);
-    }
-
-    select {
-      border-radius: 999px;
-      border: 1px solid #d5dbf0;
-      padding: 3px 8px;
-      font-size: 0.75rem;
-      background: #ffffff;
-      color: var(--text-main);
-      outline: none;
-    }
-
-    .input-modal-body {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      font-size: 0.8rem;
-    }
-
-    .input-row {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .input-row input,
-    .input-row select {
-      border-radius: 999px;
-      border: 1px solid #d5dbf0;
-      padding: 6px 10px;
-      font-size: 0.8rem;
-      outline: none;
-    }
-
-    .input-modal-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .small-btn {
-      border-radius: 999px;
-      padding: 6px 12px;
-      font-size: 0.8rem;
-      border: none;
-      cursor: pointer;
-    }
-
-    .small-btn.primary {
-      background: #1f7aff;
-      color: #fff;
-    }
-
-    .small-btn.secondary {
-      background: #eef1f8;
-      color: #4b5160;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>動画レーンタイム計測（試作）</title>
+<meta name="description" content="動画からレーン別にスタート〜規定周回のタイムを計測する試作ツール" />
+<style>
+:root {
+  --bg: #0d0d0f;
+  --panel: #1c1c1e;
+  --line: #2c2c2e;
+  --text: #f2f2f7;
+  --sub: #8e8e93;
+  --blue: #6BAFD6;
+  --pink: #e891b0;
+  --green: #34c759;
+  --orange: #ff9f0a;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; min-height: 100%; background: var(--bg); color: var(--text);
+  font-family: "游ゴシック", "Yu Gothic", "Hiragino Sans", "Meiryo", sans-serif;
+}
+.app { max-width: 960px; margin: 0 auto; padding: 12px 12px 32px; }
+h1 {
+  font-size: 13px; letter-spacing: 0.18em; font-weight: 650;
+  color: #9aa3b2; text-align: center; margin: 4px 0 12px;
+}
+.panel {
+  background: var(--panel); border-radius: 10px; padding: 12px;
+  margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.06);
+}
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-bottom: 8px; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--sub); }
+input[type="number"], select, input[type="file"] {
+  background: #0d0d0f; color: var(--text); border: 1px solid #3a3a3c;
+  border-radius: 6px; padding: 8px 10px; font-size: 14px; min-width: 0;
+}
+input[type="number"] { width: 88px; }
+button {
+  border: none; border-radius: 8px; padding: 10px 14px; font-size: 13px; font-weight: 700;
+  cursor: pointer; color: #fff;
+}
+.btn-blue { background: var(--blue); color: #0d0d0f; }
+.btn-pink { background: var(--pink); color: #1c1c1e; }
+.btn-gray { background: #3a3a3c; }
+.btn-green { background: var(--green); color: #0d0d0f; }
+button:disabled { opacity: 0.4; cursor: default; }
+.hint { font-size: 11px; color: var(--sub); line-height: 1.5; margin: 6px 0 0; }
+.stage-wrap {
+  position: relative; width: 100%; background: #000; border-radius: 8px; overflow: hidden;
+  touch-action: none;
+}
+canvas { display: block; width: 100%; height: auto; vertical-align: top; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.status {
+  font-size: 12px; color: var(--sub); min-height: 1.4em; margin-top: 8px;
+}
+.status strong { color: var(--blue); }
+table {
+  width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px;
+}
+th, td {
+  text-align: left; padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-variant-numeric: tabular-nums;
+}
+th { color: var(--sub); font-size: 11px; font-weight: 600; }
+td.time { font-weight: 700; color: #fff; }
+td.done { color: var(--green); }
+td.pending { color: var(--orange); }
+.lane-colors span {
+  display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px;
+}
+.steps { font-size: 12px; color: var(--sub); line-height: 1.6; margin: 0; padding-left: 1.1em; }
+.steps li { margin-bottom: 2px; }
+</style>
 </head>
 <body>
-  <div class="app-shell">
-    <header>
-      <div>
-        <div class="app-title">RPM Analyzer</div>
-      </div>
-      <div class="header-right">
-        <button class="icon-button" id="historyIcon" title="履歴">
-          <span>📄</span>
-        </button>
-        <button class="icon-button" id="settingsIcon" title="設定">
-          <span>⚙️</span>
-        </button>
-      </div>
-    </header>
+<div class="app">
+  <h1>VIDEO LANE TIMER（試作）</h1>
 
-    <!-- リアルタイム計測 -->
-    <section class="card" aria-label="リアルタイム計測エリア">
-      <div class="card-header">
-        <div class="card-title">リアルタイム計測</div>
-        <div class="card-caption">モーター音からRPMとSPEEDを解析</div>
-      </div>
-
-      <div class="wave-container">
-        <div class="wave-header">
-          <span>FFTスペクトラム</span>
-          <span id="fftStatusLabel">STANDBY</span>
-        </div>
-        <canvas id="spectrum"></canvas>
-      </div>
-
-      <div class="history-label" style="margin-bottom:4px; color:rgba(255,120,160,0.85);">RPM</div>
-      <div class="realtime-stats">
-        <div class="stat-block">
-          <div class="stat-label">RPM</div>
-          <div class="stat-value" id="avgRpm">0</div>
-        </div>
-        <div class="stat-block">
-          <div class="stat-label">MAX</div>
-          <div class="stat-value" id="maxRpm">0</div>
-        </div>
-        <div class="stat-block">
-          <div class="stat-label">MIN</div>
-          <div class="stat-value" id="minRpm">0</div>
-        </div>
-      </div>
-
-      <div class="history-label" style="margin:6px 0 4px; color:rgba(255,120,160,0.85);">SPEED</div>
-      <div class="realtime-stats">
-        <div class="stat-block">
-          <div class="stat-label">SPEED</div>
-          <div class="stat-value" id="avgSpeed">0.00 km/h</div>
-        </div>
-        <div class="stat-block">
-          <div class="stat-label">TOP</div>
-          <div class="stat-value" id="maxSpeed">0.00 km/h</div>
-        </div>
-        <div class="stat-block">
-          <div class="stat-label">MIN</div>
-          <div class="stat-value" id="minSpeed">0.00 km/h</div>
-        </div>
-      </div>
-
-      <div class="realtime-center">
-        <span id="standbyText">STANDBY</span> — 計測待機中
-      </div>
-
-      <div class="realtime-buttons">
-        <button class="primary-btn blue" id="startBtn">計測開始</button>
-        <button class="secondary-btn gray" id="lockBtn">ロック</button>
-        <button class="primary-btn blue" id="saveBtn">保存</button>
-        <button class="secondary-btn outline" id="resetBtn">リセット</button>
-      </div>
-    </section>
-
-    <!-- 計測条件 -->
-    <section class="card" aria-label="計測条件">
-      <div class="card-header">
-        <div class="card-title">計測条件</div>
-        <div class="card-caption">電圧・ギヤ比・タイヤ径</div>
-      </div>
-      <div class="settings-row">
-        <div class="setting-item">
-          <div class="setting-label">
-            <span>電圧 (V)</span>
-            <span class="setting-value" id="voltageLabel">2.8 V</span>
-          </div>
-          <input type="range" id="voltageRange" min="2.2" max="3.4" step="0.1" value="2.8" />
-        </div>
-        <div class="setting-item">
-          <div class="setting-label">
-            <span>ギヤ比</span>
-            <span class="setting-value" id="gearLabel">3.5:1</span>
-          </div>
-          <input type="range" id="gearRange" min="0" max="7" step="1" value="0" />
-        </div>
-        <div class="setting-item">
-          <div class="setting-label">
-            <span>タイヤ径 (mm)</span>
-            <span class="setting-value" id="tireLabel">26.0 mm</span>
-          </div>
-          <input type="range" id="tireRange" min="22.0" max="40.0" step="0.1" value="26.0" />
-        </div>
-      </div>
-    </section>
-
-    <!-- 比較表 -->
-    <section class="card" aria-label="比較表">
-      <div class="card-header">
-        <div class="card-title">比較表</div>
-        <div class="card-caption">ロック時点の条件から算出</div>
-      </div>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>電圧 (V)</th>
-              <th>モーターRPM</th>
-              <th>3.5:1 km/h</th>
-              <th>3.7:1 km/h</th>
-              <th>4.0:1 km/h</th>
-              <th>4.2:1 km/h</th>
-              <th>5.0:1 km/h</th>
-              <th>6.4:1 km/h</th>
-              <th>8.75:1 km/h</th>
-              <th>11.2:1 km/h</th>
-            </tr>
-          </thead>
-          <tbody id="comparisonBody"></tbody>
-        </table>
-      </div>
-    </section>
+  <div class="panel">
+    <ol class="steps">
+      <li>動画を選択</li>
+      <li>レーン数・周回数を入力</li>
+      <li>赤い計測ラインをドラッグで移動</li>
+      <li>色付きレーン帯の端をドラッグして幅・位置を調整（右がレーン1）</li>
+      <li>「解析」で各レーンのタイム一覧を表示</li>
+    </ol>
   </div>
 
-  <!-- 設定モーダル -->
-  <div class="modal-backdrop" id="settingsModalBackdrop">
-    <div class="modal">
-      <div class="modal-header">
-        <div class="modal-title">音声解析設定</div>
-        <button class="modal-close" id="settingsClose">×</button>
-      </div>
-      <div class="card" style="margin-bottom:8px;">
-        <div class="card-header">
-          <div class="card-title">解析パラメータ</div>
-          <div class="card-caption">ノイズ・極数・校正</div>
-        </div>
-        <div class="settings-row">
-          <div class="setting-item">
-            <div class="setting-label">
-              <span>ノイズ閾値 (dB)</span>
-              <span class="setting-value" id="noiseLabel">-100 dB</span>
-            </div>
-            <input type="range" id="noiseRange" min="-120" max="-80" step="2" value="-100" />
-          </div>
-          <div class="setting-item">
-            <div class="setting-label">
-              <span>モーター極数</span>
-              <span class="setting-value" id="poleMotorLabel">1</span>
-            </div>
-            <input type="range" id="motorPoleRange" min="1" max="4" step="1" value="1" />
-          </div>
-          <div class="setting-item">
-            <div class="setting-label">
-              <span>RPM校正係数</span>
-              <span class="setting-value" id="rpmCalLabel">1.00</span>
-            </div>
-            <input type="range" id="rpmCalRange" min="0.8" max="1.2" step="0.01" value="0.99" />
-          </div>
-        </div>
-      </div>
+  <div class="panel">
+    <div class="row">
+      <label>動画
+        <input type="file" id="fileInput" accept="video/*" />
+      </label>
+      <label>レーン数
+        <input type="number" id="laneCount" min="1" max="8" value="3" />
+      </label>
+      <label>周回数
+        <input type="number" id="lapCount" min="1" max="50" value="3" />
+      </label>
+      <label>感度
+        <input type="number" id="sensitivity" min="5" max="80" value="22" title="大きいほど鈍感" />
+      </label>
+      <label>通過の最短間隔(秒)
+        <input type="number" id="minGap" min="0.15" max="5" step="0.05" value="0.6" />
+      </label>
     </div>
+    <p class="hint">
+      右から1・2・3…のレーン帯です。通過は「計測ライン上の各レーン帯で映像が大きく変わった瞬間」を数えます。
+      1回目の通過＝スタート、（周回数+1）回目＝ゴールです。固定カメラ・はっきりしたライン向きの試作です。
+    </p>
   </div>
 
-  <!-- 履歴モーダル -->
-  <div class="modal-backdrop" id="historyModalBackdrop">
-    <div class="modal">
-      <div class="modal-header">
-        <div class="modal-title">計測履歴</div>
-        <button class="modal-close" id="historyClose">×</button>
-      </div>
-
-      <div class="card" style="margin-bottom:8px;">
-        <div class="card-header">
-          <div class="card-title">フィルタ</div>
-          <div class="card-caption">モーター・種類・電圧・ギヤ比・タイヤ径</div>
-        </div>
-        <div class="history-filters">
-          <div class="filter-group">
-            <span>モーター</span>
-            <select id="filterMotor">
-              <option value="">すべて</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <span>モーター種類</span>
-            <select id="filterMotorType">
-              <option value="">すべて</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <span>電圧</span>
-            <select id="filterVoltage">
-              <option value="">すべて</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <span>ギヤ比</span>
-            <select id="filterGear">
-              <option value="">すべて</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <span>タイヤ径</span>
-            <select id="filterTire">
-              <option value="">すべて</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">全体計測履歴一覧</div>
-          <div class="card-caption">保存したモーター性能ベンチ</div>
-        </div>
-        <div class="history-list" id="historyList"></div>
-      </div>
+  <div class="panel">
+    <div class="stage-wrap" id="stageWrap">
+      <canvas id="cv"></canvas>
     </div>
-  </div>
-
-  <!-- 保存入力モーダル -->
-  <div class="modal-backdrop" id="saveModalBackdrop">
-    <div class="modal">
-      <div class="modal-header">
-        <div class="modal-title">保存設定</div>
-        <button class="modal-close" id="saveClose">×</button>
-      </div>
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">保存情報</div>
-          <div class="card-caption">名前とモーター種類</div>
-        </div>
-        <div class="input-modal-body">
-          <div class="input-row">
-            <span>名前（必須・8文字まで）</span>
-            <input type="text" id="saveNameInput" maxlength="8" />
-          </div>
-          <div class="input-row">
-            <span>モーター種類（任意）</span>
-            <select id="saveMotorTypeSelect">
-              <option value="">未選択</option>
-              <option>ノーマル</option>
-              <option>レブチューン</option>
-              <option>トルクチューン</option>
-              <option>アトミックチューン</option>
-              <option>ライトダッシュ</option>
-              <option>ハイパーダッシュ</option>
-              <option>パワーダッシュ</option>
-              <option>スプリントダッシュ</option>
-              <option>ウルトラダッシュ</option>
-              <option>プラズマダッシュ</option>
-              <option>レブチューンPRO</option>
-              <option>トルクチューンPRO</option>
-              <option>アトミックチューンPRO</option>
-              <option>ライトダッシュPRO</option>
-              <option>ハイパーダッシュPRO</option>
-              <option>マッハダッシュPRO</option>
-            </select>
-          </div>
-          <div class="input-modal-actions">
-            <button class="small-btn secondary" id="saveCancelBtn">キャンセル</button>
-            <button class="small-btn primary" id="saveConfirmBtn">保存</button>
-          </div>
-        </div>
-      </div>
+    <div class="toolbar">
+      <button type="button" class="btn-gray" id="btnPlay">再生/一時停止</button>
+      <button type="button" class="btn-blue" id="btnAnalyze">解析</button>
+      <button type="button" class="btn-gray" id="btnResetHits">検知リセット</button>
     </div>
+    <div class="status" id="status">動画を選択してください</div>
   </div>
 
-  <script>
-    // --- Canvas resize ---
-    const spectrumCanvas = document.getElementById("spectrum");
-    const specCtx = spectrumCanvas.getContext("2d");
+  <div class="panel">
+    <div style="font-size:12px;font-weight:700;margin-bottom:6px;">各レーンのタイム一覧</div>
+    <table>
+      <thead>
+        <tr>
+          <th>レーン</th>
+          <th>通過回数</th>
+          <th>タイム</th>
+          <th>状態</th>
+        </tr>
+      </thead>
+      <tbody id="resultBody">
+        <tr><td colspan="4" style="color:#8e8e93;">未解析</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
 
-    function resizeCanvas(canvas) {
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * window.devicePixelRatio;
-      canvas.height = rect.height * window.devicePixelRatio;
+<video id="vid" playsinline muted style="display:none"></video>
+
+<script>
+(function () {
+  var LANE_COLORS = ['#6BAFD6', '#e891b0', '#ff9f0a', '#34c759', '#af52de', '#ff3b30', '#64d2ff', '#ffd60a'];
+
+  var vid = document.getElementById('vid');
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d', { willReadFrequently: true });
+  var statusEl = document.getElementById('status');
+  var resultBody = document.getElementById('resultBody');
+
+  var state = {
+    ready: false,
+    // finish line y in video pixel coords (0..videoHeight)
+    lineY: 0.55,
+    // lanes: array of {x0, x1} in normalized 0..1 from LEFT of video.
+    // Display order: rightmost = lane 1
+    lanes: [],
+    drag: null, // {type, laneIndex, edge}
+    hits: [],   // per lane array of times (seconds)
+    analyzing: false,
+    lastSample: null
+  };
+
+  function laneCount() {
+    return Math.max(1, Math.min(8, parseInt(document.getElementById('laneCount').value, 10) || 3));
+  }
+  function lapCount() {
+    return Math.max(1, Math.min(50, parseInt(document.getElementById('lapCount').value, 10) || 3));
+  }
+  function sensitivity() {
+    return Math.max(5, Math.min(80, parseFloat(document.getElementById('sensitivity').value) || 22));
+  }
+  function minGap() {
+    return Math.max(0.15, Math.min(5, parseFloat(document.getElementById('minGap').value) || 0.6));
+  }
+
+  function initLanes(n) {
+    n = n || laneCount();
+    state.lanes = [];
+    for (var i = 0; i < n; i++) {
+      var a = i / n;
+      var b = (i + 1) / n;
+      // leave small gap
+      state.lanes.push({ x0: a + 0.01, x1: b - 0.01 });
     }
-    function resizeAllCanvas() {
-      resizeCanvas(spectrumCanvas);
-    }
-    resizeAllCanvas();
-    window.addEventListener("resize", resizeAllCanvas);
+    state.hits = state.lanes.map(function () { return []; });
+  }
 
-    // --- 計測条件ラベル ---
-    const voltageRange = document.getElementById("voltageRange");
-    const voltageLabel = document.getElementById("voltageLabel");
-    voltageRange.addEventListener("input", () => {
-      voltageLabel.textContent = Number(voltageRange.value).toFixed(1) + " V";
+  function setStatus(msg) {
+    statusEl.innerHTML = msg;
+  }
+
+  function resizeCanvas() {
+    if (!vid.videoWidth) return;
+    var maxW = cv.parentElement.clientWidth || 640;
+    var scale = maxW / vid.videoWidth;
+    cv.width = vid.videoWidth;
+    cv.height = vid.videoHeight;
+    cv.style.width = Math.round(vid.videoWidth * scale) + 'px';
+    cv.style.height = Math.round(vid.videoHeight * scale) + 'px';
+  }
+
+  function draw() {
+    if (!vid.videoWidth) return;
+    ctx.drawImage(vid, 0, 0, cv.width, cv.height);
+
+    var h = cv.height;
+    var w = cv.width;
+    var y = state.lineY * h;
+
+    // lane bands
+    state.lanes.forEach(function (ln, i) {
+      var x0 = ln.x0 * w;
+      var x1 = ln.x1 * w;
+      var color = LANE_COLORS[i % LANE_COLORS.length];
+      ctx.fillStyle = hexAlpha(color, 0.18);
+      ctx.fillRect(x0, 0, Math.max(2, x1 - x0), h);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x0 + 1, 1, Math.max(2, x1 - x0 - 2), h - 2);
+      // handles
+      ctx.fillStyle = color;
+      ctx.fillRect(x0 - 3, y - 18, 6, 36);
+      ctx.fillRect(x1 - 3, y - 18, 6, 36);
+      // label: rightmost visual is lane 1? User said 右から1番目
+      // Our lanes array is left-to-right index 0 = leftmost.
+      // Display label from right: laneNumber = n - i
+      var n = state.lanes.length;
+      var laneNo = n - i;
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillStyle = color;
+      ctx.fillText('L' + laneNo, x0 + 6, 20);
     });
 
-    const gearRange = document.getElementById("gearRange");
-    const gearLabel = document.getElementById("gearLabel");
-    const gearOptions = ["3.5:1", "3.7:1", "4.0:1", "4.2:1", "5.0:1", "6.4:1", "8.75:1", "11.2:1"];
-    gearRange.addEventListener("input", () => {
-      gearLabel.textContent = gearOptions[gearRange.value];
-    });
+    // finish line
+    ctx.strokeStyle = '#ff3b30';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+    ctx.fillStyle = '#ff3b30';
+    ctx.fillRect(0, y - 4, w, 8);
+    ctx.globalAlpha = 0.35;
+    ctx.fillRect(0, y - 4, w, 8);
+    ctx.globalAlpha = 1;
 
-    const tireRange = document.getElementById("tireRange");
-    const tireLabel = document.getElementById("tireLabel");
-    tireRange.addEventListener("input", () => {
-      tireLabel.textContent = Number(tireRange.value).toFixed(1) + " mm";
-    });
-
-    // --- 設定モーダルラベル ---
-    const noiseRange = document.getElementById("noiseRange");
-    const noiseLabel = document.getElementById("noiseLabel");
-    noiseRange.addEventListener("input", () => {
-      noiseLabel.textContent = noiseRange.value + " dB";
-    });
-
-    const motorPoleRange = document.getElementById("motorPoleRange");
-    const poleMotorLabel = document.getElementById("poleMotorLabel");
-    motorPoleRange.addEventListener("input", () => {
-      poleMotorLabel.textContent = motorPoleRange.value;
-    });
-
-    const rpmCalRange = document.getElementById("rpmCalRange");
-    const rpmCalLabel = document.getElementById("rpmCalLabel");
-    rpmCalLabel.textContent = "1.00";
-    rpmCalRange.addEventListener("input", () => {
-      rpmCalLabel.textContent = Number(rpmCalRange.value).toFixed(2);
-    });
-
-    // --- リアルタイム表示要素 ---
-    const avgRpmEl = document.getElementById("avgRpm");
-    const maxRpmEl = document.getElementById("maxRpm");
-    const minRpmEl = document.getElementById("minRpm");
-    const avgSpeedEl = document.getElementById("avgSpeed");
-    const maxSpeedEl = document.getElementById("maxSpeed");
-    const minSpeedEl = document.getElementById("minSpeed");
-    const standbyText = document.getElementById("standbyText");
-    const fftStatusLabel = document.getElementById("fftStatusLabel");
-
-    const startBtn = document.getElementById("startBtn");
-    const lockBtn = document.getElementById("lockBtn");
-    const saveBtn = document.getElementById("saveBtn");
-    const resetBtn = document.getElementById("resetBtn");
-
-    let measuring = false;
-    let lockedStats = false;
-
-    // --- Web Audio ---
-    let audioContext = null;
-    let analyser = null;
-    let sourceNode = null;
-    let freqData = null;
-
-    let currentRpm = 0;
-    let maxRpm = 0;
-    let minRpm = 0;
-    let currentSpeed = 0;
-    let maxSpeed = 0;
-    let minSpeed = 0;
-
-    function rpmToKmh(rpm, tireMm, gearRatio) {
-      const tireM = tireMm / 1000;
-      const circumference = tireM * Math.PI;
-      const wheelRpm = rpm / gearRatio;
-      const mPerMin = wheelRpm * circumference;
-      const kmPerH = (mPerMin * 60) / 1000;
-      return kmPerH;
-    }
-
-    async function startAudio() {
-      if (audioContext) return;
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048;
-        const bufferLength = analyser.frequencyBinCount;
-        freqData = new Float32Array(bufferLength);
-
-        sourceNode = audioContext.createMediaStreamSource(stream);
-        sourceNode.connect(analyser);
-
-        fftStatusLabel.textContent = "LIVE";
-        standbyText.textContent = "MEASURING";
-
-        drawLoop();
-      } catch (e) {
-        console.error(e);
-        standbyText.textContent = "ERROR";
-      }
-    }
-
-    function stopAudio() {
-      if (audioContext) {
-        audioContext.close();
-        audioContext = null;
-        analyser = null;
-        sourceNode = null;
-        freqData = null;
-      }
-      fftStatusLabel.textContent = "STANDBY";
-      standbyText.textContent = "STANDBY";
-    }
-
-    function drawSpectrumAndComputeRpm() {
-      if (!analyser || !freqData) return;
-      analyser.getFloatFrequencyData(freqData);
-
-      const w = spectrumCanvas.width;
-      const h = spectrumCanvas.height;
-      specCtx.clearRect(0, 0, w, h);
-
-      const sampleRate = audioContext.sampleRate;
-      const binCount = freqData.length;
-
-      const noiseThresholdDb = parseFloat(noiseRange.value);
-      const motorPoles = parseInt(motorPoleRange.value, 10);
-      const rpmCal = parseFloat(rpmCalRange.value);
-
-      // 背景グリッド（薄いブルー）
-      specCtx.save();
-      specCtx.strokeStyle = "rgba(0, 120, 255, 0.12)";
-      specCtx.lineWidth = 1 * window.devicePixelRatio;
-      const gridLines = 6;
-      for (let i = 1; i < gridLines; i++) {
-        const gx = (w / gridLines) * i;
-        specCtx.beginPath();
-        specCtx.moveTo(gx, 0);
-        specCtx.lineTo(gx, h);
-        specCtx.stroke();
-      }
-      specCtx.restore();
-
-      // RPM軸ラベル（0～60000rpm、中央30000rpm強調）
-      const rpmTicks = [0, 10000, 20000, 30000, 40000, 50000, 60000];
-      specCtx.save();
-      specCtx.font = 10 * window.devicePixelRatio + "px sans-serif";
-      rpmTicks.forEach((rpm) => {
-        const freq = rpm / 60; // 極数1前提の軸
-        const x = (freq / 1000) * w;
-        specCtx.fillStyle =
-          rpm === 30000 ? "rgba(255, 120, 160, 0.95)" : "rgba(255, 120, 160, 0.75)";
-        const label = rpm.toString();
-        specCtx.fillText(label, x - 12 * window.devicePixelRatio, h - 4 * window.devicePixelRatio);
+    // hit marks
+    state.hits.forEach(function (arr, i) {
+      var ln = state.lanes[i];
+      if (!ln) return;
+      var cx = ((ln.x0 + ln.x1) / 2) * w;
+      arr.forEach(function (t, hi) {
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText((hi === 0 ? 'S ' : '') + t.toFixed(2) + 's', cx - 18, y - 10 - hi * 12);
       });
-      specCtx.restore();
+    });
+  }
 
-      let peakFreq = 0;
-      let peakVal = -Infinity;
+  function hexAlpha(hex, a) {
+    var h = hex.replace('#', '');
+    var r = parseInt(h.slice(0, 2), 16);
+    var g = parseInt(h.slice(2, 4), 16);
+    var b = parseInt(h.slice(4, 6), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+  }
 
-      // パッションピンクのネオン波形（0～1000Hz）
-      specCtx.save();
-      specCtx.beginPath();
-      specCtx.strokeStyle = "rgba(255, 45, 120, 0.95)";
-      specCtx.shadowBlur = 8;
-      specCtx.shadowColor = "rgba(255, 45, 120, 0.55)";
-      specCtx.lineWidth = 2 * window.devicePixelRatio;
+  function pointerToVideo(e) {
+    var rect = cv.getBoundingClientRect();
+    var clientX = e.clientX != null ? e.clientX : (e.touches && e.touches[0].clientX);
+    var clientY = e.clientY != null ? e.clientY : (e.touches && e.touches[0].clientY);
+    var x = (clientX - rect.left) / rect.width;
+    var y = (clientY - rect.top) / rect.height;
+    return {
+      x: Math.max(0, Math.min(1, x)),
+      y: Math.max(0, Math.min(1, y))
+    };
+  }
 
-      let started = false;
-      for (let i = 0; i < binCount; i++) {
-        const freq = (i * sampleRate) / (2 * binCount);
-        if (freq < 0 || freq > 1000) continue;
-
-        const val = freqData[i];
-        const norm = Math.max((val + 140) / 60, 0);
-        const x = (freq / 1000) * w;
-        const y = h - norm * h;
-
-        if (!started) {
-          specCtx.moveTo(x, y);
-          started = true;
-        } else {
-          specCtx.lineTo(x, y);
-        }
-
-        if (val > noiseThresholdDb && val > peakVal) {
-          peakVal = val;
-          peakFreq = freq;
-        }
-      }
-      specCtx.stroke();
-      specCtx.restore();
-
-      // ピーク縦線（淡いオレンジ）
-      if (peakFreq > 0) {
-        const peakX = (peakFreq / 1000) * w;
-        specCtx.save();
-        specCtx.strokeStyle = "rgba(255, 150, 0, 0.85)";
-        specCtx.lineWidth = 2;
-        specCtx.beginPath();
-        specCtx.moveTo(peakX, 0);
-        specCtx.lineTo(peakX, h);
-        specCtx.stroke();
-        specCtx.restore();
-
-        let rpm = (peakFreq / motorPoles) * 60 * rpmCal;
-        currentRpm = rpm;
-
-        const tireMm = Number(tireRange.value);
-        const gearRatio = parseFloat(gearOptions[gearRange.value]);
-        currentSpeed = rpmToKmh(rpm, tireMm, gearRatio);
-
-        if (!lockedStats) {
-          if (maxRpm === 0 || rpm > maxRpm) maxRpm = rpm;
-          if (minRpm === 0 || rpm < minRpm) minRpm = rpm;
-          if (maxSpeed === 0 || currentSpeed > maxSpeed) maxSpeed = currentSpeed;
-          if (minSpeed === 0 || currentSpeed < minSpeed) minSpeed = currentSpeed;
-        }
-
-        avgRpmEl.textContent = Math.round(currentRpm);
-        maxRpmEl.textContent = Math.round(maxRpm);
-        minRpmEl.textContent = Math.round(minRpm);
-
-        avgSpeedEl.textContent = currentSpeed.toFixed(2) + " km/h";
-        maxSpeedEl.textContent = maxSpeed.toFixed(2) + " km/h";
-        minSpeedEl.textContent = minSpeed.toFixed(2) + " km/h";
-      }
+  function hitTest(p) {
+    var y = state.lineY;
+    // near finish line -> drag line
+    if (Math.abs(p.y - y) < 0.04) {
+      return { type: 'line' };
     }
-
-    function drawLoop() {
-      if (!audioContext) return;
-      drawSpectrumAndComputeRpm();
-      requestAnimationFrame(drawLoop);
+    var wSense = 0.025;
+    for (var i = 0; i < state.lanes.length; i++) {
+      var ln = state.lanes[i];
+      if (Math.abs(p.x - ln.x0) < wSense) return { type: 'edge', lane: i, edge: 'x0' };
+      if (Math.abs(p.x - ln.x1) < wSense) return { type: 'edge', lane: i, edge: 'x1' };
+      if (p.x > ln.x0 && p.x < ln.x1) return { type: 'move', lane: i };
     }
+    return null;
+  }
 
-    // --- 比較表 ---
-    const comparisonBody = document.getElementById("comparisonBody");
-    function buildComparisonTable(baseRpmFromLock) {
-      const voltages = [2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4];
-      comparisonBody.innerHTML = "";
-      const tireMm = Number(tireRange.value);
-      const ratios = [3.5, 3.7, 4.0, 4.2, 5.0, 6.4, 8.75, 11.2];
-      const currentVoltage = Number(voltageRange.value);
+  function onDown(e) {
+    if (!state.ready) return;
+    e.preventDefault();
+    var p = pointerToVideo(e);
+    state.drag = hitTest(p);
+    if (state.drag && state.drag.type === 'move') {
+      state.drag.originX = p.x;
+      state.drag.orig0 = state.lanes[state.drag.lane].x0;
+      state.drag.orig1 = state.lanes[state.drag.lane].x1;
+    }
+  }
+  function onMove(e) {
+    if (!state.drag) return;
+    e.preventDefault();
+    var p = pointerToVideo(e);
+    if (state.drag.type === 'line') {
+      state.lineY = p.y;
+    } else if (state.drag.type === 'edge') {
+      var ln = state.lanes[state.drag.lane];
+      if (state.drag.edge === 'x0') ln.x0 = Math.min(p.x, ln.x1 - 0.02);
+      else ln.x1 = Math.max(p.x, ln.x0 + 0.02);
+      ln.x0 = Math.max(0, Math.min(1, ln.x0));
+      ln.x1 = Math.max(0, Math.min(1, ln.x1));
+    } else if (state.drag.type === 'move') {
+      var ln2 = state.lanes[state.drag.lane];
+      var dx = p.x - state.drag.originX;
+      var w = state.drag.orig1 - state.drag.orig0;
+      var nx0 = state.drag.orig0 + dx;
+      var nx1 = state.drag.orig1 + dx;
+      if (nx0 < 0) { nx0 = 0; nx1 = w; }
+      if (nx1 > 1) { nx1 = 1; nx0 = 1 - w; }
+      ln2.x0 = nx0; ln2.x1 = nx1;
+    }
+    draw();
+  }
+  function onUp() { state.drag = null; }
 
-      voltages.forEach((v) => {
-        const baseRpm = baseRpmFromLock
-          ? baseRpmFromLock * (v / currentVoltage)
-          : 15000 * (v / 2.8);
-        const tr = document.createElement("tr");
+  cv.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  cv.addEventListener('touchstart', onDown, { passive: false });
+  window.addEventListener('touchmove', onMove, { passive: false });
+  window.addEventListener('touchend', onUp);
 
-        const tdV = document.createElement("td");
-        tdV.textContent = v.toFixed(1) + " V";
-        tr.appendChild(tdV);
+  document.getElementById('fileInput').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var url = URL.createObjectURL(f);
+    vid.src = url;
+    vid.onloadedmetadata = function () {
+      state.ready = true;
+      state.lineY = 0.55;
+      initLanes(laneCount());
+      resizeCanvas();
+      vid.currentTime = 0;
+      setTimeout(function () { draw(); }, 50);
+      setStatus('動画準備完了（' + vid.videoWidth + '×' + vid.videoHeight + ' / ' + vid.duration.toFixed(2) + '秒）。ラインとレーンを調整して解析してください。');
+      renderResults();
+    };
+  });
 
-        const tdRpm = document.createElement("td");
-        tdRpm.textContent = Math.round(baseRpm);
-        tr.appendChild(tdRpm);
+  document.getElementById('laneCount').addEventListener('change', function () {
+    initLanes(laneCount());
+    if (state.ready) draw();
+    renderResults();
+  });
 
-        ratios.forEach((r) => {
-          const td = document.createElement("td");
-          td.textContent = rpmToKmh(baseRpm, tireMm, r).toFixed(2);
-          tr.appendChild(td);
-        });
+  document.getElementById('btnPlay').addEventListener('click', function () {
+    if (!state.ready) return;
+    if (vid.paused) {
+      vid.play();
+      loopPreview();
+    } else {
+      vid.pause();
+    }
+  });
 
-        comparisonBody.appendChild(tr);
+  function loopPreview() {
+    if (vid.paused || vid.ended) { draw(); return; }
+    draw();
+    requestAnimationFrame(loopPreview);
+  }
+
+  document.getElementById('btnResetHits').addEventListener('click', function () {
+    state.hits = state.lanes.map(function () { return []; });
+    renderResults();
+    draw();
+    setStatus('検知をリセットしました');
+  });
+
+  function sampleLaneSignature(lane) {
+    var w = cv.width, h = cv.height;
+    var y = Math.round(state.lineY * h);
+    var band = 5; // px above/below line
+    var y0 = Math.max(0, y - band);
+    var y1 = Math.min(h - 1, y + band);
+    var x0 = Math.round(lane.x0 * w);
+    var x1 = Math.round(lane.x1 * w);
+    if (x1 <= x0) return null;
+    var img = ctx.getImageData(x0, y0, x1 - x0, y1 - y0 + 1);
+    var d = img.data;
+    var step = 4 * 3; // subsample
+    var sum = 0, count = 0;
+    for (var i = 0; i < d.length; i += step) {
+      // luminance
+      sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      count++;
+    }
+    return count ? sum / count : 0;
+  }
+
+  function renderResults() {
+    var need = lapCount() + 1; // crossings
+    var n = state.lanes.length;
+    if (!n) {
+      resultBody.innerHTML = '<tr><td colspan="4" style="color:#8e8e93;">未解析</td></tr>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < n; i++) {
+      var laneNo = n - i; // right = 1
+      var hits = state.hits[i] || [];
+      var color = LANE_COLORS[i % LANE_COLORS.length];
+      var timeStr = '—';
+      var st = '待ち';
+      var cls = 'pending';
+      if (hits.length >= need) {
+        var t = hits[need - 1] - hits[0];
+        timeStr = t.toFixed(3) + ' 秒';
+        st = '完了';
+        cls = 'done';
+      } else if (hits.length > 0) {
+        timeStr = (vid.duration ? '計測中' : '—');
+        st = hits.length + ' / ' + need + ' 通過';
+      }
+      html += '<tr>' +
+        '<td class="lane-colors"><span style="background:' + color + '"></span>レーン ' + laneNo + '</td>' +
+        '<td>' + hits.length + '</td>' +
+        '<td class="time ' + cls + '">' + timeStr + '</td>' +
+        '<td class="' + cls + '">' + st + '</td></tr>';
+    }
+    resultBody.innerHTML = html;
+  }
+
+  async function analyze() {
+    if (!state.ready || state.analyzing) return;
+    if (vid.duration && !isFinite(vid.duration)) {
+      setStatus('この動画は長さを取得できません');
+      return;
+    }
+    state.analyzing = true;
+    state.hits = state.lanes.map(function () { return []; });
+    document.getElementById('btnAnalyze').disabled = true;
+    vid.pause();
+
+    var duration = vid.duration || 0;
+    var fps = 30; // analysis sampling rate
+    var step = 1 / fps;
+    var baselines = state.lanes.map(function () { return null; });
+    var lastHitT = state.lanes.map(function () { return -999; });
+    var need = lapCount() + 1;
+    var sens = sensitivity();
+    var gap = minGap();
+
+    setStatus('解析中… 0%');
+
+    // warm first frame
+    vid.currentTime = 0;
+    await waitSeek();
+    draw();
+    state.lanes.forEach(function (ln, i) {
+      baselines[i] = sampleLaneSignature(ln);
+    });
+
+    for (var t = step; t < duration; t += step) {
+      vid.currentTime = t;
+      await waitSeek();
+      draw();
+
+      state.lanes.forEach(function (ln, i) {
+        if (state.hits[i].length >= need) return;
+        var sig = sampleLaneSignature(ln);
+        if (sig == null || baselines[i] == null) return;
+        var diff = Math.abs(sig - baselines[i]);
+        // update baseline slowly when calm
+        if (diff < sens * 0.35) {
+          baselines[i] = baselines[i] * 0.9 + sig * 0.1;
+          return;
+        }
+        if (diff >= sens && (t - lastHitT[i]) >= gap) {
+          state.hits[i].push(Number(t.toFixed(3)));
+          lastHitT[i] = t;
+          // lock new baseline after hit
+          baselines[i] = sig;
+        }
       });
+
+      if (Math.floor(t * 10) % 5 === 0) {
+        var pct = Math.min(99, Math.round((t / duration) * 100));
+        setStatus('解析中… <strong>' + pct + '%</strong>');
+        renderResults();
+        await nextFrame();
+      }
     }
-    buildComparisonTable(null);
 
-    // --- ボタン動作 ---
-    startBtn.addEventListener("click", () => {
-      measuring = !measuring;
-      if (measuring) {
-        startBtn.textContent = "計測停止";
-        lockBtn.textContent = "ロック";
-        lockBtn.classList.add("gray");
-        lockBtn.classList.remove("outline");
-        lockedStats = false;
-        startAudio();
-      } else {
-        startBtn.textContent = "計測開始";
-        stopAudio();
-      }
-    });
+    renderResults();
+    setStatus('解析完了（周回 ' + lapCount() + ' ／ 必要通過 ' + need + ' 回）');
+    state.analyzing = false;
+    document.getElementById('btnAnalyze').disabled = false;
+    vid.currentTime = 0;
+    await waitSeek();
+    draw();
+  }
 
-    lockBtn.addEventListener("click", () => {
-      lockedStats = !lockedStats;
-      lockBtn.classList.toggle("gray");
-      lockBtn.classList.toggle("outline");
-      lockBtn.textContent = lockedStats ? "ロック解除" : "ロック";
-
-      if (lockedStats) {
-        const avgRpm = Number(avgRpmEl.textContent) || currentRpm || 15000;
-        buildComparisonTable(avgRpm);
-      }
-    });
-
-    resetBtn.addEventListener("click", () => {
-      measuring = false;
-      lockedStats = false;
-      startBtn.textContent = "計測開始";
-      lockBtn.textContent = "ロック";
-      lockBtn.classList.add("gray");
-      lockBtn.classList.remove("outline");
-      stopAudio();
-      currentRpm = 0;
-      maxRpm = 0;
-      minRpm = 0;
-      currentSpeed = 0;
-      maxSpeed = 0;
-      minSpeed = 0;
-      avgRpmEl.textContent = "0";
-      maxRpmEl.textContent = "0";
-      minRpmEl.textContent = "0";
-      avgSpeedEl.textContent = "0.00 km/h";
-      maxSpeedEl.textContent = "0.00 km/h";
-      minSpeedEl.textContent = "0.00 km/h";
-      buildComparisonTable(null);
-    });
-
-    // --- 履歴データ ---
-    const historyList = document.getElementById("historyList");
-    const filterMotor = document.getElementById("filterMotor");
-    const filterMotorType = document.getElementById("filterMotorType");
-    const filterVoltage = document.getElementById("filterVoltage");
-    const filterGear = document.getElementById("filterGear");
-    const filterTire = document.getElementById("filterTire");
-
-    const historyData = [];
-
-    function motorTypeToAbbrev(type) {
-      if (!type) return "";
-      const map = {
-        "ノーマル": "NM",
-        "レブチューン": "RB",
-        "トルクチューン": "TT",
-        "アトミックチューン": "AT",
-        "ライトダッシュ": "LD",
-        "ハイパーダッシュ": "HD",
-        "パワーダッシュ": "PD",
-        "スプリントダッシュ": "SD",
-        "ウルトラダッシュ": "UD",
-        "プラズマダッシュ": "PL",
-        "レブチューンPRO": "RB-PRO",
-        "トルクチューンPRO": "TT-PRO",
-        "アトミックチューンPRO": "AT-PRO",
-        "ライトダッシュPRO": "LD-PRO",
-        "ハイパーダッシュPRO": "HD-PRO",
-        "マッハダッシュPRO": "MH-PRO",
+  function waitSeek() {
+    return new Promise(function (resolve) {
+      var done = false;
+      var finish = function () {
+        if (done) return;
+        done = true;
+        vid.removeEventListener('seeked', finish);
+        resolve();
       };
-      return map[type] || type;
-    }
-
-    function populateFilterOptions() {
-      const motors = new Set();
-      const motorTypes = new Set();
-      const voltages = new Set();
-      const gears = new Set();
-      const tires = new Set();
-      historyData.forEach((h) => {
-        motors.add(h.motor);
-        if (h.motorType) motorTypes.add(h.motorType);
-        voltages.add(h.voltage);
-        gears.add(h.gear);
-        tires.add(h.tire);
-      });
-
-      function fillSelect(select, set) {
-        const current = select.value;
-        select.innerHTML = '<option value="">すべて</option>';
-        set.forEach((v) => {
-          const opt = document.createElement("option");
-          opt.value = v;
-          opt.textContent = v;
-          select.appendChild(opt);
-        });
-        if (set.has(current)) select.value = current;
-      }
-
-      fillSelect(filterMotor, motors);
-      fillSelect(filterMotorType, motorTypes);
-      fillSelect(filterVoltage, voltages);
-      fillSelect(filterGear, gears);
-      fillSelect(filterTire, tires);
-    }
-
-    function renderHistory() {
-      historyList.innerHTML = "";
-
-      const m = filterMotor.value;
-      const mt = filterMotorType.value;
-      const v = filterVoltage.value;
-      const g = filterGear.value;
-      const t = filterTire.value;
-
-      historyData
-        .filter((h) => (!m || h.motor === m))
-        .filter((h) => (!mt || h.motorType === mt))
-        .filter((h) => (!v || h.voltage === v))
-        .filter((h) => (!g || h.gear === g))
-        .filter((h) => (!t || h.tire === t))
-        .forEach((h, idx) => {
-          const row = document.createElement("div");
-          row.className = "history-row";
-
-          const topRow = document.createElement("div");
-          topRow.className = "history-row-top";
-          const bottomRow = document.createElement("div");
-          bottomRow.className = "history-row-bottom";
-
-          function cell(text, alignLeft = false) {
-            const span = document.createElement("span");
-            span.textContent = text;
-            if (alignLeft) span.style.textAlign = "left";
-            return span;
-          }
-
-          topRow.appendChild(cell(h.date, true));
-          topRow.appendChild(cell(h.motor, true));
-          topRow.appendChild(cell(motorTypeToAbbrev(h.motorType) || "-", true));
-          topRow.appendChild(cell(h.voltage));
-          topRow.appendChild(cell(h.gear + " / " + h.tire));
-
-          bottomRow.appendChild(cell("TOP " + h.topSpeed + " km/h"));
-          bottomRow.appendChild(cell("MAX " + h.maxRpm));
-          bottomRow.appendChild(cell("AVG " + h.avgRpm));
-
-          const del = document.createElement("button");
-          del.className = "delete-btn";
-          del.innerHTML = "🗑️";
-          del.addEventListener("click", () => {
-            historyData.splice(idx, 1);
-            populateFilterOptions();
-            renderHistory();
-          });
-          bottomRow.appendChild(del);
-
-          row.appendChild(topRow);
-          row.appendChild(bottomRow);
-          historyList.appendChild(row);
-        });
-    }
-
-    [filterMotor, filterMotorType, filterVoltage, filterGear, filterTire].forEach((sel) =>
-      sel.addEventListener("change", renderHistory)
-    );
-
-    // --- 保存入力モーダル制御 ---
-    const saveModalBackdrop = document.getElementById("saveModalBackdrop");
-    const saveClose = document.getElementById("saveClose");
-    const saveNameInput = document.getElementById("saveNameInput");
-    const saveMotorTypeSelect = document.getElementById("saveMotorTypeSelect");
-    const saveCancelBtn = document.getElementById("saveCancelBtn");
-    const saveConfirmBtn = document.getElementById("saveConfirmBtn");
-
-    function openSaveModal() {
-      saveNameInput.value = "";
-      saveMotorTypeSelect.value = "";
-      saveModalBackdrop.style.display = "flex";
-    }
-    function closeSaveModal() {
-      saveModalBackdrop.style.display = "none";
-    }
-
-    saveClose.addEventListener("click", closeSaveModal);
-    saveCancelBtn.addEventListener("click", closeSaveModal);
-    saveModalBackdrop.addEventListener("click", (e) => {
-      if (e.target === saveModalBackdrop) closeSaveModal();
+      vid.addEventListener('seeked', finish);
+      // fallback
+      setTimeout(finish, 80);
     });
+  }
+  function nextFrame() {
+    return new Promise(function (r) { requestAnimationFrame(function () { r(); }); });
+  }
 
-    saveConfirmBtn.addEventListener("click", () => {
-      const name = saveNameInput.value.trim();
-      if (!name) {
-        alert("名前は必須です（8文字まで）。");
-        return;
-      }
-      if (name.length > 8) {
-        alert("名前は8文字までです。");
-        return;
-      }
+  document.getElementById('btnAnalyze').addEventListener('click', function () {
+    analyze().catch(function (e) {
+      console.error(e);
+      state.analyzing = false;
+      document.getElementById('btnAnalyze').disabled = false;
+      setStatus('解析エラー: ' + (e && e.message ? e.message : e));
+    });
+  });
 
-      const motorType = saveMotorTypeSelect.value || "";
+  window.addEventListener('resize', function () {
+    if (!state.ready) return;
+    resizeCanvas();
+    draw();
+  });
 
-      const newEntry = {
-        date: new Date().toISOString().slice(2, 10).replace(/-/g, ""),
-        motor: name,
-        motorType: motorType,
-        voltage: voltageLabel.textContent,
-        gear: gearLabel.textContent,
-        tire: tireLabel.textContent,
-        topSpeed: maxSpeedEl.textContent.replace(" km/h", ""),
-        maxRpm: maxRpmEl.textContent,
-        avgRpm: avgRpmEl.textContent,
-      };
-      historyData.push(newEntry);
-      populateFilterOptions();
-      renderHistory();
-      closeSaveModal();
-    });
-
-    saveBtn.addEventListener("click", () => {
-      openSaveModal();
-    });
-
-    // --- モーダル制御 ---
-    const settingsIcon = document.getElementById("settingsIcon");
-    const settingsModalBackdrop = document.getElementById("settingsModalBackdrop");
-    const settingsClose = document.getElementById("settingsClose");
-
-    settingsIcon.addEventListener("click", () => {
-      settingsModalBackdrop.style.display = "flex";
-    });
-    settingsClose.addEventListener("click", () => {
-      settingsModalBackdrop.style.display = "none";
-    });
-    settingsModalBackdrop.addEventListener("click", (e) => {
-      if (e.target === settingsModalBackdrop) settingsModalBackdrop.style.display = "none";
-    });
-
-    const historyIcon = document.getElementById("historyIcon");
-    const historyModalBackdrop = document.getElementById("historyModalBackdrop");
-    const historyClose = document.getElementById("historyClose");
-
-    historyIcon.addEventListener("click", () => {
-      historyModalBackdrop.style.display = "flex";
-      renderHistory();
-    });
-    historyClose.addEventListener("click", () => {
-      historyModalBackdrop.style.display = "none";
-    });
-    historyModalBackdrop.addEventListener("click", (e) => {
-      if (e.target === historyModalBackdrop) historyModalBackdrop.style.display = "none";
-    });
-  </script>
+  initLanes(3);
+  renderResults();
+})();
+</script>
 </body>
 </html>
