@@ -42,6 +42,25 @@ input, select {
 .stage {
   position: relative; background: #000; border-radius: 10px; overflow: hidden;
 }
+.stage-inner {
+  position: relative; width: 100%; transform-origin: center center;
+  transition: transform 0.2s ease;
+}
+.stage.rot-90 .stage-inner { transform: rotate(90deg); }
+.stage.rot-180 .stage-inner { transform: rotate(180deg); }
+.stage.rot-270 .stage-inner { transform: rotate(-90deg); }
+/* 回転時も収まりやすく */
+.stage.rot-90, .stage.rot-270 {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 42vh;
+}
+.stage.rot-90 .stage-inner, .stage.rot-270 .stage-inner {
+  width: 42vh; max-width: 100%;
+}
+.stage.rot-90 video, .stage.rot-270 video {
+  max-height: none; width: 100%; height: auto;
+}
+
 video { display: block; width: 100%; height: auto; max-height: 48vh; background: #000; }
 .overlay {
   position: absolute; left: 0; right: 0; top: 0; padding: 10px 12px;
@@ -200,14 +219,19 @@ button:disabled { opacity: 0.45; cursor: default; }
   <div class="card">
     <h2>2. 動画（秒数オーバーレイ付き）</h2>
     <div class="stage" id="stage">
-      <video id="video" playsinline></video>
-      <div class="overlay" id="overlay">
-        <div class="race-clock" id="raceClock">—</div>
-        <div class="race-sub" id="raceSub">スタート前</div>
-        <div class="race-sub" id="raceLap">ラップ: —</div>
+      <div class="stage-inner" id="stageInner">
+        <video id="video" playsinline></video>
+        <div class="overlay" id="overlay">
+          <div class="race-clock" id="raceClock">—</div>
+          <div class="race-sub" id="raceSub">スタート前</div>
+          <div class="race-sub" id="raceLap">ラップ: —</div>
+        </div>
       </div>
     </div>
     <div class="tools">
+      <button type="button" id="btnRotRight">右に回す</button>
+      <button type="button" id="btnRotLeft">左に回す</button>
+      <button type="button" id="btnRotReset">向きリセット</button>
       <button type="button" id="btnReplay">再度再生</button>
       <button type="button" id="btnPlayReset">再生リセット</button>
       <button type="button" id="btnResetLane">記録を消す</button>
@@ -289,7 +313,8 @@ button:disabled { opacity: 0.45; cursor: default; }
     passIndex: 0,
     hits: [],
     raf: 0,
-    exporting: false
+    exporting: false,
+    viewRot: 0 // 0, 90, 180, -90 (display)
   };
 
   function $(id) { return document.getElementById(id); }
@@ -301,6 +326,27 @@ button:disabled { opacity: 0.45; cursor: default; }
     return laneCount() - no;
   }
   function setStatus(t) { statusEl.textContent = t; }
+
+  function applyViewRot() {
+    var stage = document.getElementById('stage');
+    if (!stage) return;
+    stage.classList.remove('rot-90', 'rot-180', 'rot-270');
+    var r = state.viewRot;
+    if (r === 90) stage.classList.add('rot-90');
+    else if (r === 180) stage.classList.add('rot-180');
+    else if (r === -90 || r === 270) stage.classList.add('rot-270');
+  }
+  function rotateView(delta) {
+    // cycle 0 -> 90 -> 180 -> -90 -> 0
+    var order = [0, 90, 180, -90];
+    var i = order.indexOf(state.viewRot);
+    if (i < 0) i = 0;
+    i = (i + delta + order.length) % order.length;
+    state.viewRot = order[i];
+    applyViewRot();
+    setStatus('表示向き: ' + (state.viewRot === 0 ? 'そのまま' : state.viewRot + '°'));
+  }
+
 
   function passLabel(n) {
     n = n | 0;
@@ -690,12 +736,29 @@ button:disabled { opacity: 0.45; cursor: default; }
       exportCv.width = vw;
       exportCv.height = vh;
     }
-    var stream = exportCv.captureStream(30);
+    var canvasStream = exportCv.captureStream(30);
+    // 元動画の音声トラックを合成（再生可能時）
+    var mixedStream = canvasStream;
+    try {
+      var vStream = video.captureStream ? video.captureStream() : null;
+      if (vStream) {
+        var tracks = canvasStream.getVideoTracks().slice();
+        vStream.getAudioTracks().forEach(function (tr) { tracks.push(tr); });
+        if (tracks.length) mixedStream = new MediaStream(tracks);
+      }
+    } catch (audioErr) {
+      console.warn('audio mix failed', audioErr);
+    }
     var mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
       ? 'video/webm;codecs=vp9'
       : (MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : '');
-    var rec = mime ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 4e6 })
-      : new MediaRecorder(stream);
+    var recOpts = mime ? { mimeType: mime, videoBitsPerSecond: 4e6 } : { videoBitsPerSecond: 4e6 };
+    var rec;
+    try {
+      rec = new MediaRecorder(mixedStream, recOpts);
+    } catch (e1) {
+      rec = new MediaRecorder(mixedStream);
+    }
     var chunks = [];
     rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
 
@@ -903,6 +966,12 @@ $('btnResetLane').addEventListener('click', function () {
     if (video.paused) updateOverlay();
   });
 
+  if ($('btnRotRight')) $('btnRotRight').addEventListener('click', function () { rotateView(1); });
+  if ($('btnRotLeft')) $('btnRotLeft').addEventListener('click', function () { rotateView(-1); });
+  if ($('btnRotReset')) $('btnRotReset').addEventListener('click', function () {
+    state.viewRot = 0; applyViewRot(); setStatus('表示向きをリセットしました');
+  });
+
   if ($('btnHelp')) {
     $('btnHelp').addEventListener('click', function () {
       document.getElementById('helpSheet').classList.add('show');
@@ -935,8 +1004,15 @@ $('btnResetLane').addEventListener('click', function () {
       <li>3回目→2周終了</li>
       <li>4回目→3周終了（ゴール）</li>
     </ul>
-    <p>秒数入り動画（WebM）は、書き出し後に端末の<strong>ダウンロード</strong>へ保存されます。</p>
+    <p>「右に回す／左に回す」で、読み込み後の表示向きを変えられます。</p>
+    <p>秒数入り動画（WebM）は、書き出し後に端末の<strong>ダウンロード</strong>へ保存されます。可能なかぎり元の音声も残します。</p>
     <p><strong>iPhoneについて：</strong> WebM は標準の写真アプリでは再生できないことが多いです。再生する場合は <strong>VLC</strong> などの対応アプリを使用してください。</p>
+    <p><strong>音声について（環境差）</strong></p>
+    <ul>
+      <li>Android Chrome など：音声付きになりやすい</li>
+      <li>iPhone Safari：captureStream 制限で無音のままのことがある</li>
+    </ul>
+    <p>iPhone で無音の場合は、ブラウザ側の制限であることが多いです。</p>
     <button type="button" class="help-close" id="helpClose">閉じる</button>
   </div>
 </div>
