@@ -3,20 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>動画レーンタイム計測</title>
-<meta name="description" content="斜め計測ライン対応。動画からレーン別タイムを計測する試作アプリ" />
+<title>動画レーンタイム計測（色差検知）</title>
+<meta name="description" content="レーン枠内の色変化から通過を検知し、レーン別タイムを計測する試作" />
 <style>
 :root {
-  --bg: #0b0c0f;
-  --panel: #16181d;
-  --border: rgba(255,255,255,0.08);
-  --text: #f3f4f6;
-  --muted: #9ca3af;
-  --red: #ff3b30;
-  --blue: #6BAFD6;
-  --pink: #e891b0;
-  --green: #34c759;
-  --orange: #ff9f0a;
+  --bg: #0b0c0f; --panel: #16181d; --border: rgba(255,255,255,0.08);
+  --text: #f3f4f6; --muted: #9ca3af; --blue: #6BAFD6; --green: #34c759; --orange: #ff9f0a;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body {
@@ -25,7 +17,7 @@ html, body {
 }
 .app { max-width: 980px; margin: 0 auto; padding: 12px 12px 40px; }
 h1 {
-  margin: 0 0 10px; text-align: center; font-size: 12px; letter-spacing: 0.22em;
+  margin: 0 0 10px; text-align: center; font-size: 12px; letter-spacing: 0.2em;
   color: #9aa3b2; font-weight: 650;
 }
 .card {
@@ -34,10 +26,10 @@ h1 {
 }
 .card h2 {
   margin: 0 0 8px; font-size: 12px; color: var(--muted);
-  letter-spacing: 0.08em; font-weight: 700;
+  letter-spacing: 0.06em; font-weight: 700;
 }
 .grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px; align-items: end;
 }
 label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
@@ -50,21 +42,17 @@ button {
   border: 0; border-radius: 8px; padding: 10px 14px; font-weight: 700; font-size: 13px;
   cursor: pointer; color: #111;
 }
-.b-red { background: var(--red); color: #fff; }
 .b-blue { background: var(--blue); }
 .b-gray { background: #3a3a3c; color: #fff; }
 .b-green { background: var(--green); }
 button:disabled { opacity: 0.4; cursor: default; }
-button.active { box-shadow: 0 0 0 2px #fff; }
 .hint { margin: 8px 0 0; font-size: 11px; line-height: 1.55; color: var(--muted); }
 .stage {
   position: relative; background: #000; border-radius: 10px; overflow: hidden;
   touch-action: none; user-select: none;
 }
 canvas { display: block; width: 100%; height: auto; }
-.status {
-  margin-top: 8px; min-height: 1.4em; font-size: 12px; color: var(--muted);
-}
+.status { margin-top: 8px; min-height: 1.4em; font-size: 12px; color: var(--muted); }
 .status em { color: var(--blue); font-style: normal; font-weight: 700; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td {
@@ -72,26 +60,19 @@ th, td {
   font-variant-numeric: tabular-nums;
 }
 th { font-size: 11px; color: var(--muted); font-weight: 600; }
-.dot {
-  display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px;
-}
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
 .ok { color: var(--green); font-weight: 700; }
 .wait { color: var(--orange); }
-.banner {
-  position: absolute; left: 0; right: 0; top: 0; padding: 10px 12px;
-  background: rgba(0,0,0,0.55); color: #fff; font-size: 13px; font-weight: 700;
-  pointer-events: none;
-}
 </style>
 </head>
 <body>
 <div class="app">
-  <h1>VIDEO LANE TIMER</h1>
+  <h1>VIDEO LANE TIMER · COLOR</h1>
 
   <div class="card">
     <h2>1. 動画と条件</h2>
     <div class="grid">
-      <label style="grid-column: 1 / -1;">動画ファイル
+      <label style="grid-column:1/-1;">動画
         <input type="file" id="file" accept="video/*" />
       </label>
       <label>レーン数
@@ -100,44 +81,36 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
       <label>周回数
         <input type="number" id="laps" min="1" max="50" value="3" />
       </label>
-      <label>感度（大=鈍感）
-        <input type="number" id="sens" min="5" max="80" value="22" />
+      <label>色差の感度（大=鈍感）
+        <input type="number" id="sens" min="5" max="120" value="28" />
       </label>
       <label>最短間隔(秒)
         <input type="number" id="gap" min="0.15" max="5" step="0.05" value="0.6" />
       </label>
     </div>
     <p class="hint">
-      写真のように、STARTラインに合わせて<strong>赤い計測線を斜めに2点で引きます</strong>。
-      レーン帯は線の上に乗り、右端側をレーン1とします。
+      ラインは使いません。各レーンの<strong>色付き枠の中</strong>で、映像の色が変わった瞬間を通過として数えます。
+      枠はドラッグで位置移動、角でサイズ変更できます。右の枠がレーン1です。
     </p>
   </div>
 
   <div class="card">
-    <h2>2. ライン配置（始点 → 終点）</h2>
+    <h2>2. レーン枠の調整と解析</h2>
     <div class="btns">
-      <button type="button" class="b-red" id="btnLine">赤ラインを引き直す</button>
-      <button type="button" class="b-gray" id="btnCancel" style="display:none;">キャンセル</button>
+      <button type="button" class="b-gray" id="btnResetLanes">レーン枠を等分に戻す</button>
       <button type="button" class="b-gray" id="btnPlay">再生/停止</button>
       <button type="button" class="b-blue" id="btnRun">解析開始</button>
       <button type="button" class="b-gray" id="btnClear">検知リセット</button>
     </div>
-    <div class="stage" id="stage">
-      <canvas id="cv"></canvas>
-      <div class="banner" id="banner" style="display:none;"></div>
-    </div>
+    <div class="stage"><canvas id="cv"></canvas></div>
     <div class="status" id="status">動画を選んでください</div>
   </div>
 
   <div class="card">
     <h2>3. 各レーンのタイム一覧</h2>
     <table>
-      <thead>
-        <tr><th>レーン</th><th>通過</th><th>タイム</th><th>状態</th></tr>
-      </thead>
-      <tbody id="tbody">
-        <tr><td colspan="4" style="color:#9ca3af;">未解析</td></tr>
-      </tbody>
+      <thead><tr><th>レーン</th><th>通過</th><th>タイム</th><th>状態</th></tr></thead>
+      <tbody id="tbody"><tr><td colspan="4" style="color:#9ca3af;">未解析</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -146,18 +119,12 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
 
 <script>
 /**
- * Video Lane Timer — clean rewrite
- * ---------------------------------
- * Model:
- *  - finishLine: two endpoints in normalized video coords {x,y} 0..1
- *  - lanes: segments along the line parameter t∈[0,1] (t=0 start, t=1 end)
- *  - Lane number: from end side → lane 1 (matches "右から1番" when drawn L→R)
- * Detection:
- *  - Sample luminance along each lane segment near the line
- *  - Crossing when sudden change vs adaptive baseline
- * Timing:
- *  - 1st hit = start, (laps+1)th hit = finish
- *  - time = finish - start
+ * Color-diff lane timer (no finish line)
+ * --------------------------------------
+ * Each lane = axis-aligned rect in normalized coords {x,y,w,h}
+ * Detect pass when average RGB in the rect shifts vs adaptive baseline.
+ * 1st hit = start, (laps+1)th = finish.
+ * Lane 1 = rightmost rect.
  */
 (function () {
   'use strict';
@@ -168,82 +135,38 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
   var canvas = document.getElementById('cv');
   var ctx = canvas.getContext('2d', { willReadFrequently: true });
   var statusEl = document.getElementById('status');
-  var bannerEl = document.getElementById('banner');
   var tbody = document.getElementById('tbody');
 
   var App = {
     ready: false,
     analyzing: false,
-    drawMode: false, // placing line
-    placePhase: 0,   // 1=wait start, 2=wait end
-    line: { x1: 0.15, y1: 0.62, x2: 0.85, y2: 0.48 },
-    lanes: [],       // {t0,t1}
-    hits: [],        // seconds[] per lane
+    lanes: [], // {x,y,w,h} normalized, left→right order
+    hits: [],
     drag: null
   };
 
   function $(id) { return document.getElementById(id); }
-  function num(id, def) {
-    var v = parseFloat($(id).value);
-    return isFinite(v) ? v : def;
-  }
+  function num(id, d) { var v = parseFloat($(id).value); return isFinite(v) ? v : d; }
   function laneCount() { return Math.max(1, Math.min(8, Math.round(num('laneN', 3)))); }
   function lapCount() { return Math.max(1, Math.min(50, Math.round(num('laps', 3)))); }
-  function sens() { return Math.max(5, Math.min(80, num('sens', 22))); }
+  function sens() { return Math.max(5, Math.min(120, num('sens', 28))); }
   function gapSec() { return Math.max(0.15, Math.min(5, num('gap', 0.6))); }
-
-  function setStatus(html) { statusEl.innerHTML = html; }
-  function setBanner(text) {
-    if (!text) { bannerEl.style.display = 'none'; return; }
-    bannerEl.style.display = 'block';
-    bannerEl.textContent = text;
-  }
+  function setStatus(h) { statusEl.innerHTML = h; }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
   function resetLanes() {
     var n = laneCount();
     App.lanes = [];
+    // place thin horizontal bands across track height mid-area
+    var y = 0.42, h = 0.16;
     for (var i = 0; i < n; i++) {
-      var a = i / n;
-      var b = (i + 1) / n;
-      App.lanes.push({ t0: a + 0.012, t1: b - 0.012 });
+      var x = i / n + 0.02;
+      var w = 1 / n - 0.04;
+      App.lanes.push({ x: x, y: y, w: Math.max(0.04, w), h: h });
     }
     App.hits = App.lanes.map(function () { return []; });
   }
 
-  // --- geometry ---
-  function lerp(a, b, t) { return a + (b - a) * t; }
-  function linePoint(t) {
-    return {
-      x: lerp(App.line.x1, App.line.x2, t),
-      y: lerp(App.line.y1, App.line.y2, t)
-    };
-  }
-  function projectT(p) {
-    var dx = App.line.x2 - App.line.x1;
-    var dy = App.line.y2 - App.line.y1;
-    var len2 = dx * dx + dy * dy || 1e-8;
-    var t = ((p.x - App.line.x1) * dx + (p.y - App.line.y1) * dy) / len2;
-    return Math.max(0, Math.min(1, t));
-  }
-  function dist(a, b) {
-    var dx = a.x - b.x, dy = a.y - b.y;
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-  function toPx(p) {
-    return { x: p.x * canvas.width, y: p.y * canvas.height };
-  }
-  function pointerNorm(evt) {
-    var rect = canvas.getBoundingClientRect();
-    var cx = evt.clientX != null ? evt.clientX : evt.touches[0].clientX;
-    var cy = evt.clientY != null ? evt.clientY : evt.touches[0].clientY;
-    return {
-      x: clamp((cx - rect.left) / rect.width, 0, 1),
-      y: clamp((cy - rect.top) / rect.height, 0, 1)
-    };
-  }
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
-  // --- canvas ---
   function fitCanvas() {
     if (!video.videoWidth) return;
     var maxW = canvas.parentElement.clientWidth || 640;
@@ -257,208 +180,138 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
   function draw() {
     if (!video.videoWidth) return;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    var W = canvas.width, H = canvas.height;
 
-    var p1 = toPx({ x: App.line.x1, y: App.line.y1 });
-    var p2 = toPx({ x: App.line.x2, y: App.line.y2 });
-    var dx = p2.x - p1.x, dy = p2.y - p1.y;
-    var len = Math.sqrt(dx * dx + dy * dy) || 1;
-    var nx = -dy / len, ny = dx / len;
-    var half = Math.max(16, Math.min(canvas.width, canvas.height) * 0.035);
-
-    // lanes as strips along the red line
-    App.lanes.forEach(function (lane, i) {
-      var a = toPx(linePoint(lane.t0));
-      var b = toPx(linePoint(lane.t1));
+    App.lanes.forEach(function (ln, i) {
+      var x = ln.x * W, y = ln.y * H, w = ln.w * W, h = ln.h * H;
       var color = COLORS[i % COLORS.length];
-      ctx.beginPath();
-      ctx.moveTo(a.x + nx * half, a.y + ny * half);
-      ctx.lineTo(b.x + nx * half, b.y + ny * half);
-      ctx.lineTo(b.x - nx * half, b.y - ny * half);
-      ctx.lineTo(a.x - nx * half, a.y - ny * half);
-      ctx.closePath();
       ctx.fillStyle = color;
-      ctx.globalAlpha = 0.24;
-      ctx.fill();
+      ctx.globalAlpha = 0.22;
+      ctx.fillRect(x, y, w, h);
       ctx.globalAlpha = 1;
       ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x, y, w, h);
 
-      // handles
+      // corner handles
+      var hs = 8;
       ctx.fillStyle = color;
-      circle(a.x, a.y, 6);
-      circle(b.x, b.y, 6);
+      [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(function (p) {
+        ctx.fillRect(p[0] - hs / 2, p[1] - hs / 2, hs, hs);
+      });
 
-      var mid = toPx(linePoint((lane.t0 + lane.t1) * 0.5));
-      var laneNo = App.lanes.length - i; // end side ≈ lane 1 when drawn left→right
+      var laneNo = App.lanes.length - i; // rightmost = 1
+      ctx.font = 'bold 14px sans-serif';
       ctx.fillStyle = color;
-      ctx.font = 'bold 13px sans-serif';
-      ctx.fillText('L' + laneNo, mid.x - 10, mid.y - half - 8);
+      ctx.fillText('L' + laneNo, x + 6, y + 18);
     });
-
-    // red measurement line (like the photo markup)
-    ctx.strokeStyle = 'rgba(255,59,48,0.95)';
-    ctx.lineWidth = Math.max(6, Math.min(canvas.width, canvas.height) * 0.012);
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(p1.x, p1.y);
-    ctx.lineTo(p2.x, p2.y);
-    ctx.stroke();
-
-    // endpoints
-    ctx.fillStyle = varRed();
-    circle(p1.x, p1.y, 11);
-    circle(p2.x, p2.y, 11);
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillText('始点', p1.x + 14, p1.y - 12);
-    ctx.fillText('終点', p2.x + 14, p2.y - 12);
   }
 
-  function varRed() { return '#ff3b30'; }
-  function circle(x, y, r) {
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
+  function pointerNorm(evt) {
+    var rect = canvas.getBoundingClientRect();
+    var cx = evt.clientX != null ? evt.clientX : evt.touches[0].clientX;
+    var cy = evt.clientY != null ? evt.clientY : evt.touches[0].clientY;
+    return {
+      x: clamp((cx - rect.left) / rect.width, 0, 1),
+      y: clamp((cy - rect.top) / rect.height, 0, 1)
+    };
   }
 
-  // --- interaction ---
   function hitTest(p) {
-    var a = { x: App.line.x1, y: App.line.y1 };
-    var b = { x: App.line.x2, y: App.line.y2 };
-    if (dist(p, a) < 0.045) return { type: 'p1' };
-    if (dist(p, b) < 0.045) return { type: 'p2' };
-    for (var i = 0; i < App.lanes.length; i++) {
-      var lane = App.lanes[i];
-      if (dist(p, linePoint(lane.t0)) < 0.04) return { type: 'edge', i: i, which: 't0' };
-      if (dist(p, linePoint(lane.t1)) < 0.04) return { type: 'edge', i: i, which: 't1' };
-      var t = projectT(p);
-      if (t >= lane.t0 && t <= lane.t1 && dist(p, linePoint(t)) < 0.05) {
-        return { type: 'move', i: i, t: t, t0: lane.t0, t1: lane.t1 };
+    // corners first (priority), then body
+    for (var i = App.lanes.length - 1; i >= 0; i--) {
+      var ln = App.lanes[i];
+      var corners = [
+        { name: 'tl', x: ln.x, y: ln.y },
+        { name: 'tr', x: ln.x + ln.w, y: ln.y },
+        { name: 'bl', x: ln.x, y: ln.y + ln.h },
+        { name: 'br', x: ln.x + ln.w, y: ln.y + ln.h }
+      ];
+      for (var c = 0; c < corners.length; c++) {
+        var k = corners[c];
+        if (Math.abs(p.x - k.x) < 0.035 && Math.abs(p.y - k.y) < 0.04) {
+          return { type: 'corner', i: i, corner: k.name };
+        }
+      }
+    }
+    for (var j = App.lanes.length - 1; j >= 0; j--) {
+      var L = App.lanes[j];
+      if (p.x >= L.x && p.x <= L.x + L.w && p.y >= L.y && p.y <= L.y + L.h) {
+        return {
+          type: 'move', i: j,
+          ox: p.x, oy: p.y,
+          bx: L.x, by: L.y
+        };
       }
     }
     return null;
   }
 
-  function onPointerDown(e) {
+  function onDown(e) {
     if (!App.ready) return;
     e.preventDefault();
-    var p = pointerNorm(e);
-
-    if (App.drawMode) {
-      if (App.placePhase === 1) {
-        App.line.x1 = p.x; App.line.y1 = p.y;
-        // temporary end near start
-        App.line.x2 = clamp(p.x + 0.05, 0, 1);
-        App.line.y2 = p.y;
-        App.placePhase = 2;
-        setBanner('終点をタップ（コースのラインに合わせて斜めでもOK）');
-        setStatus('終点を指定してください');
-        draw();
-        return;
-      }
-      if (App.placePhase === 2) {
-        App.line.x2 = p.x; App.line.y2 = p.y;
-        finishDrawMode();
-        return;
-      }
-    }
-
-    App.drag = hitTest(p);
+    App.drag = hitTest(pointerNorm(e));
   }
-
-  function onPointerMove(e) {
-    if (!App.drag || App.drawMode) return;
+  function onMove(e) {
+    if (!App.drag) return;
     e.preventDefault();
     var p = pointerNorm(e);
-    if (App.drag.type === 'p1') {
-      App.line.x1 = p.x; App.line.y1 = p.y;
-    } else if (App.drag.type === 'p2') {
-      App.line.x2 = p.x; App.line.y2 = p.y;
-    } else if (App.drag.type === 'edge') {
-      var t = projectT(p);
-      var lane = App.lanes[App.drag.i];
-      if (App.drag.which === 't0') lane.t0 = Math.min(t, lane.t1 - 0.02);
-      else lane.t1 = Math.max(t, lane.t0 + 0.02);
-    } else if (App.drag.type === 'move') {
-      var t2 = projectT(p);
-      var dt = t2 - App.drag.t;
-      var w = App.drag.t1 - App.drag.t0;
-      var n0 = App.drag.t0 + dt;
-      var n1 = App.drag.t1 + dt;
-      if (n0 < 0) { n0 = 0; n1 = w; }
-      if (n1 > 1) { n1 = 1; n0 = 1 - w; }
-      App.lanes[App.drag.i].t0 = n0;
-      App.lanes[App.drag.i].t1 = n1;
+    var ln = App.lanes[App.drag.i];
+    if (App.drag.type === 'move') {
+      var dx = p.x - App.drag.ox;
+      var dy = p.y - App.drag.oy;
+      ln.x = clamp(App.drag.bx + dx, 0, 1 - ln.w);
+      ln.y = clamp(App.drag.by + dy, 0, 1 - ln.h);
+    } else if (App.drag.type === 'corner') {
+      var r = { x0: ln.x, y0: ln.y, x1: ln.x + ln.w, y1: ln.y + ln.h };
+      if (App.drag.corner.indexOf('t') >= 0) r.y0 = p.y;
+      if (App.drag.corner.indexOf('b') >= 0) r.y1 = p.y;
+      if (App.drag.corner.indexOf('l') >= 0) r.x0 = p.x;
+      if (App.drag.corner.indexOf('r') >= 0) r.x1 = p.x;
+      var nx0 = Math.min(r.x0, r.x1), nx1 = Math.max(r.x0, r.x1);
+      var ny0 = Math.min(r.y0, r.y1), ny1 = Math.max(r.y0, r.y1);
+      if (nx1 - nx0 < 0.03) nx1 = nx0 + 0.03;
+      if (ny1 - ny0 < 0.03) ny1 = ny0 + 0.03;
+      ln.x = clamp(nx0, 0, 0.97);
+      ln.y = clamp(ny0, 0, 0.97);
+      ln.w = clamp(nx1 - ln.x, 0.03, 1 - ln.x);
+      ln.h = clamp(ny1 - ln.y, 0.03, 1 - ln.y);
     }
     draw();
   }
+  function onUp() { App.drag = null; }
 
-  function onPointerUp() { App.drag = null; }
+  canvas.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  canvas.addEventListener('touchstart', onDown, { passive: false });
+  window.addEventListener('touchmove', onMove, { passive: false });
+  window.addEventListener('touchend', onUp);
 
-  function startDrawMode() {
-    if (!App.ready) {
-      setStatus('先に動画を選択してください');
-      return;
+  /** Average RGB in lane rect (subsampled) */
+  function sampleColor(ln) {
+    var W = canvas.width, H = canvas.height;
+    var x = Math.round(ln.x * W);
+    var y = Math.round(ln.y * H);
+    var w = Math.max(2, Math.round(ln.w * W));
+    var h = Math.max(2, Math.round(ln.h * H));
+    if (x + w > W) w = W - x;
+    if (y + h > H) h = H - y;
+    if (w < 2 || h < 2) return { r: 0, g: 0, b: 0 };
+    var img = ctx.getImageData(x, y, w, h).data;
+    var step = Math.max(4, Math.floor((w * h) / 80)) * 4;
+    var r = 0, g = 0, b = 0, n = 0;
+    for (var i = 0; i < img.length; i += step) {
+      r += img[i]; g += img[i + 1]; b += img[i + 2];
+      n++;
     }
-    App.drawMode = true;
-    App.placePhase = 1;
-    App.drag = null;
-    $('btnLine').classList.add('active');
-    $('btnCancel').style.display = '';
-    setBanner('始点をタップ（写真の赤線の一端）');
-    setStatus('始点をタップしてください');
-    draw();
+    if (!n) return { r: 0, g: 0, b: 0 };
+    return { r: r / n, g: g / n, b: b / n };
   }
 
-  function finishDrawMode() {
-    App.drawMode = false;
-    App.placePhase = 0;
-    $('btnLine').classList.remove('active');
-    $('btnCancel').style.display = 'none';
-    setBanner('');
-    resetLanes();
-    setStatus('ライン配置完了。レーン帯を調整して「解析開始」へ');
-    renderTable();
-    draw();
-  }
-
-  function cancelDrawMode() {
-    App.drawMode = false;
-    App.placePhase = 0;
-    $('btnLine').classList.remove('active');
-    $('btnCancel').style.display = 'none';
-    setBanner('');
-    setStatus('ライン配置をキャンセルしました');
-    draw();
-  }
-
-  // --- detection ---
-  function sampleLane(lane) {
-    var w = canvas.width, h = canvas.height;
-    var a = linePoint(lane.t0), b = linePoint(lane.t1);
-    var x0 = a.x * w, y0 = a.y * h, x1 = b.x * w, y1 = b.y * h;
-    var dx = x1 - x0, dy = y1 - y0;
-    var len = Math.sqrt(dx * dx + dy * dy) || 1;
-    var ux = dx / len, uy = dy / len;
-    var nx = -uy, ny = ux;
-    var steps = Math.max(10, Math.floor(len / 3));
-    var offs = [-4, -2, 0, 2, 4];
-    var sum = 0, count = 0;
-    for (var s = 0; s <= steps; s++) {
-      var t = s / steps;
-      var cx = x0 + dx * t;
-      var cy = y0 + dy * t;
-      for (var k = 0; k < offs.length; k++) {
-        var px = Math.round(cx + nx * offs[k]);
-        var py = Math.round(cy + ny * offs[k]);
-        if (px < 0 || py < 0 || px >= w || py >= h) continue;
-        var d = ctx.getImageData(px, py, 1, 1).data;
-        sum += 0.299 * d[0] + 0.587 * d[1] + 0.114 * d[2];
-        count++;
-      }
-    }
-    return count ? sum / count : 0;
+  function colorDist(a, b) {
+    var dr = a.r - b.r, dg = a.g - b.g, db = a.b - b.b;
+    return Math.sqrt(dr * dr + dg * dg + db * db);
   }
 
   function renderTable() {
@@ -473,20 +326,16 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
       var no = n - i;
       var hits = App.hits[i] || [];
       var color = COLORS[i % COLORS.length];
-      var time = '—', state = '待ち', cls = 'wait';
+      var time = '—', st = '待ち', cls = 'wait';
       if (hits.length >= need) {
         time = (hits[need - 1] - hits[0]).toFixed(3) + ' 秒';
-        state = '完了';
-        cls = 'ok';
+        st = '完了'; cls = 'ok';
       } else if (hits.length) {
-        time = '計測中';
-        state = hits.length + ' / ' + need;
+        time = '計測中'; st = hits.length + ' / ' + need;
       }
-      html += '<tr>' +
-        '<td><span class="dot" style="background:' + color + '"></span>レーン ' + no + '</td>' +
-        '<td>' + hits.length + '</td>' +
-        '<td class="' + cls + '">' + time + '</td>' +
-        '<td class="' + cls + '">' + state + '</td></tr>';
+      html += '<tr><td><span class="dot" style="background:' + color + '"></span>レーン ' + no +
+        '</td><td>' + hits.length + '</td><td class="' + cls + '">' + time +
+        '</td><td class="' + cls + '">' + st + '</td></tr>';
     }
     tbody.innerHTML = html;
   }
@@ -495,8 +344,7 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     return new Promise(function (resolve) {
       var done = false;
       function fin() {
-        if (done) return;
-        done = true;
+        if (done) return; done = true;
         video.removeEventListener('seeked', fin);
         resolve();
       }
@@ -504,9 +352,7 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
       setTimeout(fin, 90);
     });
   }
-  function tick() {
-    return new Promise(function (r) { requestAnimationFrame(function () { r(); }); });
-  }
+  function tick() { return new Promise(function (r) { requestAnimationFrame(function () { r(); }); }); }
 
   async function analyze() {
     if (!App.ready || App.analyzing) return;
@@ -527,7 +373,7 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     video.currentTime = 0;
     await waitSeek();
     draw();
-    App.lanes.forEach(function (ln, i) { base[i] = sampleLane(ln); });
+    App.lanes.forEach(function (ln, i) { base[i] = sampleColor(ln); });
 
     for (var t = step; t < duration; t += step) {
       video.currentTime = t;
@@ -536,17 +382,22 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
 
       App.lanes.forEach(function (ln, i) {
         if (App.hits[i].length >= need) return;
-        var sig = sampleLane(ln);
-        if (base[i] == null) { base[i] = sig; return; }
-        var diff = Math.abs(sig - base[i]);
-        if (diff < S * 0.35) {
-          base[i] = base[i] * 0.9 + sig * 0.1;
+        var c = sampleColor(ln);
+        if (!base[i]) { base[i] = c; return; }
+        var d = colorDist(c, base[i]);
+        if (d < S * 0.4) {
+          // calm: slow adapt baseline to lighting drift
+          base[i] = {
+            r: base[i].r * 0.92 + c.r * 0.08,
+            g: base[i].g * 0.92 + c.g * 0.08,
+            b: base[i].b * 0.92 + c.b * 0.08
+          };
           return;
         }
-        if (diff >= S && (t - last[i]) >= G) {
+        if (d >= S && (t - last[i]) >= G) {
           App.hits[i].push(+t.toFixed(3));
           last[i] = t;
-          base[i] = sig;
+          base[i] = c;
         }
       });
 
@@ -558,7 +409,7 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     }
 
     renderTable();
-    setStatus('解析完了（必要通過 ' + need + ' 回＝周回' + lapCount() + '）');
+    setStatus('解析完了（必要通過 ' + need + ' 回）');
     App.analyzing = false;
     $('btnRun').disabled = false;
     video.currentTime = 0;
@@ -566,26 +417,17 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     draw();
   }
 
-  // --- events ---
-  canvas.addEventListener('mousedown', onPointerDown);
-  window.addEventListener('mousemove', onPointerMove);
-  window.addEventListener('mouseup', onPointerUp);
-  canvas.addEventListener('touchstart', onPointerDown, { passive: false });
-  window.addEventListener('touchmove', onPointerMove, { passive: false });
-  window.addEventListener('touchend', onPointerUp);
-
   $('file').addEventListener('change', function (e) {
     var f = e.target.files && e.target.files[0];
     if (!f) return;
     video.src = URL.createObjectURL(f);
     video.onloadedmetadata = function () {
       App.ready = true;
-      App.line = { x1: 0.18, y1: 0.60, x2: 0.82, y2: 0.50 };
       resetLanes();
       fitCanvas();
       video.currentTime = 0;
       setTimeout(function () { draw(); }, 40);
-      setStatus('動画準備完了。写真のように「赤ラインを引き直す」で始点→終点を置いてください');
+      setStatus('動画準備完了。各色枠をレーン位置に合わせてから解析してください');
       renderTable();
     };
   });
@@ -595,9 +437,12 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
     if (App.ready) draw();
     renderTable();
   });
-
-  $('btnLine').addEventListener('click', startDrawMode);
-  $('btnCancel').addEventListener('click', cancelDrawMode);
+  $('btnResetLanes').addEventListener('click', function () {
+    resetLanes();
+    if (App.ready) draw();
+    renderTable();
+    setStatus('レーン枠を等分に戻しました');
+  });
   $('btnPlay').addEventListener('click', function () {
     if (!App.ready) return;
     if (video.paused) {
@@ -612,7 +457,6 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
   $('btnClear').addEventListener('click', function () {
     App.hits = App.lanes.map(function () { return []; });
     renderTable();
-    draw();
     setStatus('検知をリセットしました');
   });
   $('btnRun').addEventListener('click', function () {
@@ -623,7 +467,6 @@ th { font-size: 11px; color: var(--muted); font-weight: 600; }
       setStatus('解析エラー: ' + (err && err.message ? err.message : err));
     });
   });
-
   window.addEventListener('resize', function () {
     if (!App.ready) return;
     fitCanvas();
