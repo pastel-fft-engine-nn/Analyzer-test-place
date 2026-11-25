@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>動画ラップタイマー たたき台 proto2（手動シンプル版）</title>
+<title>動画ラップタイマー たたき台 proto3</title>
 <style>
   * { box-sizing: border-box; }
-  body { margin: 0; background: #0b0b0d; color: #f2f2f4; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.55; }
+  body { margin: 0; background: #0b0b0d; color: #f2f2f4; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.5; }
   .wrap { max-width: 860px; margin: 0 auto; padding: 14px 12px 50px; }
   h1 { font-size: 19px; margin: 4px 0 2px; }
   h1 .accent { color: #ff7a00; }
@@ -14,6 +14,8 @@
   .card { background: #141416; border: 1px solid #26272c; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
   #stage { position: relative; width: 100%; background: #000; border-radius: 12px; overflow: hidden; }
   #stage video { display: block; width: 100%; }
+  #recBadge { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,.55); color: #ff5252; font-weight: 800; font-size: 14px; padding: 4px 10px; border-radius: 999px; display: none; }
+  #liveClock { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,.55); color: #fff; font-weight: 800; font-size: 20px; padding: 4px 12px; border-radius: 10px; font-variant-numeric: tabular-nums; display: none; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   button { background: #26272c; color: #f2f2f4; border: 1px solid #3a3b41; border-radius: 10px; padding: 9px 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
   button:disabled { opacity: .4; }
@@ -21,106 +23,201 @@
   input[type="file"] { color: #c9c9cf; font-size: 13px; }
   .time { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .hint { font-size: 12.5px; color: #a7a7ae; }
-  .bigbtns { display: flex; gap: 10px; }
-  .bigbtns button { flex: 1; padding: 20px 6px; font-size: 19px; border-radius: 14px; }
+  .modes { display: flex; gap: 8px; margin-bottom: 10px; }
+  .modes button { flex: 1; padding: 10px; font-size: 15px; }
+  .modes button.on { background: #ff7a00; border-color: #ff7a00; color: #141416; }
+  .bigbtns { display: flex; gap: 8px; }
+  .bigbtns button { flex: 1; padding: 11px 4px; font-size: 16px; border-radius: 12px; }
+  #playBtn2 { background: #26272c; }
   #startBtn { background: #2f9e63; border-color: #2f9e63; color: #fff; }
   #lapBtn { background: #ff7a00; border-color: #ff7a00; color: #141416; }
   #stopBtn { background: #e8e8ea; border-color: #e8e8ea; color: #141416; }
-  #timeline { width: 100%; display: block; background: #101114; border: 1px solid #26272c; border-radius: 10px; }
-  .pin { display: flex; gap: 8px; align-items: center; border: 1px solid #33343c; border-radius: 10px; padding: 7px 10px; margin: 6px 0; font-size: 14px; cursor: pointer; }
+  .cols { display: flex; gap: 12px; }
+  .cols > div { flex: 1; min-width: 0; }
+  .cols h3 { margin: 0 0 6px; font-size: 13px; color: #a7a7ae; }
+  .pin { display: flex; gap: 8px; align-items: center; border: 1px solid #33343c; border-radius: 10px; padding: 6px 10px; margin: 5px 0; font-size: 14px; cursor: pointer; }
   .pin.sel { border-color: #ff7a00; background: rgba(255,122,0,.12); }
-  .pin b { font-variant-numeric: tabular-nums; }
+  .pin b { font-variant-numeric: tabular-nums; margin-left: auto; }
   .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; flex: none; }
   table.laps { border-collapse: collapse; width: 100%; font-size: 15px; }
-  table.laps th, table.laps td { border: 1px solid #33343c; padding: 7px 10px; text-align: right; font-variant-numeric: tabular-nums; }
+  table.laps th, table.laps td { border: 1px solid #33343c; padding: 6px 10px; text-align: right; font-variant-numeric: tabular-nums; }
   table.laps th { background: #101114; text-align: left; }
   table.laps tr.best td { color: #3ddc84; font-weight: 800; }
   table.laps tr.total td { font-weight: 800; color: #ff7a00; }
+  #timeline { width: 100%; display: block; background: #101114; border: 1px solid #26272c; border-radius: 10px; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1><span class="accent">動画ラップタイマー</span> たたき台 proto2（手動シンプル版）</h1>
-  <div class="sub">動画を再生しながら、自分のタイミングで「開始」「ラップ」「停止」を押すだけ。ピンは後からコマ単位で直せます。</div>
+  <h1><span class="accent">動画ラップタイマー</span> たたき台 proto3</h1>
+  <div class="sub">「動画から」は録画済み動画を手動で、「撮影して計測」はその場で撮りながら計測します。ピンは後からコマ単位で直せます。</div>
 
-  <div class="card">
+  <div class="modes">
+    <button id="modeFile" class="on">📂 動画から</button>
+    <button id="modeLive">📹 撮影して計測</button>
+  </div>
+
+  <div class="card" id="fileCard">
     <div class="row">
       <input type="file" id="fileInput" accept="video/*">
       <span class="hint" id="fileInfo">動画を選んでください</span>
     </div>
   </div>
+  <div class="card" id="liveCard" style="display:none">
+    <div class="hint">左端の「撮影」を押すとカメラが始まります。そのまま「スタート」「ラップ」「ゴール」で計測でき、ゴールで録画も止まって、その動画で見直せます。</div>
+  </div>
 
-  <div id="stage"><video id="vid" playsinline preload="auto"></video></div>
-
-  <div class="card">
-    <div class="row">
-      <button id="playBtn">▶ 再生</button>
-      <button id="stepBack">⏮ 1コマ戻る</button>
-      <button id="stepFwd">1コマ進む ⏭</button>
-      <span class="time" id="timeLabel">0.00 / 0.00</span>
-    </div>
-    <div class="row" style="margin-top:8px">
-      <label class="hint">再生速度
-        <select id="speedSel"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select>
-      </label>
-      <label class="hint">コマ送りの単位
-        <select id="fpsSel"><option value="30">30fps</option><option value="60" selected>60fps</option></select>
-      </label>
-      <button id="undoBtn">↩ 最後のピンを消す</button>
-      <button id="resetBtn">全部リセット</button>
-    </div>
+  <div id="stage">
+    <video id="vid" playsinline preload="auto"></video>
+    <div id="recBadge">● REC</div>
+    <div id="liveClock">0.00</div>
   </div>
 
   <div class="card">
     <div class="bigbtns">
+      <button id="playBtn2">▶ 動画開始</button>
       <button id="startBtn" disabled>開始</button>
       <button id="lapBtn" disabled>ラップ</button>
       <button id="stopBtn" disabled>停止</button>
     </div>
-    <div class="hint" style="margin-top:8px">動画を再生して、スタートの瞬間に「開始」、スタートを通過するたびに「ラップ」、終わったら「停止」。押し遅れは下のピン調整で直せます</div>
-  </div>
-
-  <div class="card">
-    <canvas id="timeline" height="54"></canvas>
-    <div id="pinList" style="margin-top:8px"></div>
-    <div class="row" style="margin-top:8px">
-      <span class="hint">選んだピンを直す：</span>
-      <button id="nudgeBack">◀ 1コマ</button>
-      <button id="nudgeFwd">1コマ ▶</button>
-      <button id="delPinBtn">このピンを消す</button>
-      <button id="goPinBtn">このピンの位置を見る</button>
+    <div class="row" style="margin-top:10px">
+      <button id="stepBack">⏮ 1コマ戻る</button>
+      <button id="stepFwd">1コマ進む ⏭</button>
+      <span class="time" id="timeLabel">0.00 / 0.00</span>
+      <label class="hint">速度
+        <select id="speedSel"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select>
+      </label>
+      <label class="hint">コマ
+        <select id="fpsSel"><option value="30">30fps</option><option value="60" selected>60fps</option></select>
+      </label>
+      <button id="undoBtn">↩ 最後のピン</button>
+      <button id="resetBtn">リセット</button>
     </div>
   </div>
 
   <div class="card">
-    <div id="lapTable"></div>
+    <div class="cols">
+      <div>
+        <h3>ピンの時刻（開始=0）</h3>
+        <div id="pinList"></div>
+      </div>
+      <div>
+        <h3>周ごとの秒数</h3>
+        <div id="lapTable"></div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <span class="hint">選んだピンを直す：</span>
+      <button id="nudgeBack">◀ 1コマ</button>
+      <button id="nudgeFwd">1コマ ▶</button>
+      <button id="delPinBtn">このピンを消す</button>
+      <button id="goPinBtn">ピンの位置を見る</button>
+    </div>
+    <canvas id="timeline" height="54" style="margin-top:10px"></canvas>
   </div>
 </div>
 
 <script>
 'use strict';
-var S = { pins: [], sel: -1 };  // pins: {kind:'start'|'lap'|'stop', t}
+var S = { pins: [], sel: -1, mode: 'file' };  // pins: {kind:'start'|'lap'|'stop', t} t = 動画の時刻（秒）
 var vid = document.getElementById('vid');
 function fmt(t) { return (Math.round(t * 100) / 100).toFixed(2); }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function fps() { return parseFloat(document.getElementById('fpsSel').value); }
+function nowS() { return performance.now() / 1000; }
 
+// ---------- file mode ----------
 document.getElementById('fileInput').addEventListener('change', function (e) {
   var f = e.target.files[0];
   if (!f) return;
+  vid.srcObject = null;
   vid.src = URL.createObjectURL(f);
   document.getElementById('fileInfo').textContent = f.name;
   S.pins = []; S.sel = -1; render();
 });
 vid.addEventListener('loadedmetadata', function () {
-  document.getElementById('stage').style.aspectRatio = vid.videoWidth + ' / ' + vid.videoHeight;
+  if (vid.videoWidth) document.getElementById('stage').style.aspectRatio = vid.videoWidth + ' / ' + vid.videoHeight;
   render();
 });
 
-var playBtn = document.getElementById('playBtn');
-playBtn.addEventListener('click', function () { if (vid.paused) vid.play(); else vid.pause(); });
-vid.addEventListener('play', function () { playBtn.textContent = '⏸ 一時停止'; });
-vid.addEventListener('pause', function () { playBtn.textContent = '▶ 再生'; });
+// ---------- live mode ----------
+var stream = null, recorder = null, chunks = [], recT0 = 0, startWall = 0, clockTimer = null, recording = false;
+function setMode(m) {
+  if (recording) { alert('撮影中は切り替えできません'); return; }
+  S.mode = m;
+  document.getElementById('modeFile').classList.toggle('on', m === 'file');
+  document.getElementById('modeLive').classList.toggle('on', m === 'live');
+  document.getElementById('fileCard').style.display = m === 'file' ? '' : 'none';
+  document.getElementById('liveCard').style.display = m === 'live' ? '' : 'none';
+  document.getElementById('playBtn2').textContent = m === 'live' ? '● 撮影' : '▶ 動画開始';
+  document.getElementById('startBtn').textContent = m === 'live' ? 'スタート' : '開始';
+  document.getElementById('stopBtn').textContent = m === 'live' ? 'ゴール' : '停止';
+  S.pins = []; S.sel = -1; render();
+}
+document.getElementById('modeFile').addEventListener('click', function () { setMode('file'); });
+document.getElementById('modeLive').addEventListener('click', function () { setMode('live'); });
+
+async function startLive() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+  } catch (e) {
+    alert('カメラを開けませんでした: ' + e.message);
+    return false;
+  }
+  vid.src = ''; vid.srcObject = stream;
+  await vid.play();
+  chunks = [];
+  var mt = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find(function (m) { return window.MediaRecorder && MediaRecorder.isTypeSupported(m); });
+  recorder = new MediaRecorder(stream, mt ? { mimeType: mt } : undefined);
+  recorder.ondataavailable = function (e) { if (e.data.size) chunks.push(e.data); };
+  recorder.onstop = onRecordStop;
+  recorder.start(250);
+  recT0 = nowS(); startWall = 0; recording = true;
+  document.getElementById('recBadge').style.display = '';
+  document.getElementById('liveClock').style.display = '';
+  document.getElementById('playBtn2').textContent = '撮影中…';
+  clockTimer = setInterval(tickClock, 47);
+  render();
+  return true;
+}
+function tickClock() {
+  var el = document.getElementById('liveClock');
+  el.textContent = startWall ? fmt(nowS() - startWall) : fmt(nowS() - recT0);
+}
+function onRecordStop() {
+  recording = false;
+  clearInterval(clockTimer);
+  document.getElementById('recBadge').style.display = 'none';
+  var blob = new Blob(chunks, { type: chunks.length && chunks[0].type ? chunks[0].type : 'video/webm' });
+  if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+  stream = null;
+  vid.srcObject = null;
+  vid.src = URL.createObjectURL(blob);
+  document.getElementById('playBtn2').textContent = '▶ 動画開始';
+  // MediaRecorder webm often reports duration=Infinity until forced: seek far once to make it finite for review
+  vid.addEventListener('loadedmetadata', function fixDur() {
+    vid.removeEventListener('loadedmetadata', fixDur);
+    if (!isFinite(vid.duration)) {
+      var onTU = function () {
+        vid.removeEventListener('timeupdate', onTU);
+        vid.currentTime = 0;
+        render();
+      };
+      vid.addEventListener('timeupdate', onTU);
+      vid.currentTime = 1e7;
+    }
+  });
+  render();
+}
+
+// ---------- transport ----------
+var playBtn2 = document.getElementById('playBtn2');
+playBtn2.addEventListener('click', function () {
+  if (S.mode === 'live' && !recording && !vid.src) { startLive(); return; }
+  if (vid.paused) vid.play(); else vid.pause();
+});
+vid.addEventListener('play', function () { if (S.mode === 'file' || !recording) playBtn2.textContent = '⏸ 一時停止'; });
+vid.addEventListener('pause', function () { if (S.mode === 'file' || !recording) playBtn2.textContent = '▶ 動画開始'; });
 document.getElementById('speedSel').addEventListener('change', function (e) { vid.playbackRate = parseFloat(e.target.value); });
 document.getElementById('stepBack').addEventListener('click', function () { vid.pause(); vid.currentTime = Math.max(0, vid.currentTime - 1 / fps()); });
 document.getElementById('stepFwd').addEventListener('click', function () { vid.pause(); vid.currentTime = Math.min(vid.duration || 0, vid.currentTime + 1 / fps()); });
@@ -129,19 +226,32 @@ vid.addEventListener('timeupdate', function () {
   drawTimeline();
 });
 
+// ---------- pins ----------
 function has(kind) { return S.pins.some(function (p) { return p.kind === kind; }); }
 function press(kind) {
-  if (!vid.duration) return;
-  if (kind === 'start' && has('start')) return;
-  if (kind === 'stop' && has('stop')) return;
-  S.pins.push({ kind: kind, t: vid.currentTime });
+  var t;
+  if (S.mode === 'live' && recording) {
+    if (kind === 'start') { if (has('start')) return; startWall = nowS(); }
+    if (kind === 'stop' && has('stop')) return;
+    t = nowS() - recT0;  // 動画の時刻に換算（録画開始=0）
+  } else {
+    if (!vid.duration) return;
+    if (kind === 'start' && has('start')) return;
+    if (kind === 'stop' && has('stop')) return;
+    t = vid.currentTime;
+  }
+  S.pins.push({ kind: kind, t: t });
   S.pins.sort(function (a, b) { return a.t - b.t; });
-  S.sel = S.pins.findIndex(function (p) { return p.kind === kind && p.t === vid.currentTime; });
+  S.sel = S.pins.findIndex(function (p) { return p.kind === kind && p.t === t; });
+  if (kind === 'stop') {
+    if (S.mode === 'live' && recording && recorder && recorder.state !== 'inactive') recorder.stop();
+    else vid.pause();
+  }
   render();
 }
 document.getElementById('startBtn').addEventListener('click', function () { press('start'); });
 document.getElementById('lapBtn').addEventListener('click', function () { press('lap'); });
-document.getElementById('stopBtn').addEventListener('click', function () { press('stop'); vid.pause(); });
+document.getElementById('stopBtn').addEventListener('click', function () { press('stop'); });
 document.getElementById('undoBtn').addEventListener('click', function () {
   if (!S.pins.length) return;
   S.pins.splice(S.pins.length - 1, 1); S.sel = -1; render();
@@ -152,10 +262,10 @@ document.getElementById('nudgeFwd').addEventListener('click', function () { nudg
 function nudge(dir) {
   if (S.sel < 0 || !S.pins[S.sel]) return;
   var p = S.pins[S.sel];
-  p.t = clamp(p.t + dir / fps(), 0, vid.duration || 0);
+  p.t = clamp(p.t + dir / fps(), 0, vid.duration || p.t + 1);
   S.pins.sort(function (a, b) { return a.t - b.t; });
   S.sel = S.pins.indexOf(p);
-  vid.currentTime = p.t;
+  if (vid.duration) vid.currentTime = p.t;
   render();
 }
 document.getElementById('delPinBtn').addEventListener('click', function () {
@@ -168,22 +278,28 @@ document.getElementById('goPinBtn').addEventListener('click', function () {
 });
 
 var KIND = { start: { label: '開始', col: '#3ddc84' }, lap: { label: 'ラップ', col: '#ff7a00' }, stop: { label: '停止', col: '#e8e8ea' } };
+function startT() { var st = S.pins.find(function (p) { return p.kind === 'start'; }); return st ? st.t : 0; }
 function render() {
   var started = has('start'), stopped = has('stop');
-  document.getElementById('startBtn').disabled = !vid.duration || started;
+  var canPin = S.mode === 'live' ? recording : !!vid.duration;
+  document.getElementById('startBtn').disabled = !canPin || started;
   document.getElementById('lapBtn').disabled = !started || stopped;
   document.getElementById('stopBtn').disabled = !started || stopped;
+  playBtn2.disabled = S.mode === 'live' && recording;
   var list = document.getElementById('pinList');
   list.innerHTML = '';
-  var lapNo = 0;
+  var lapNo = 0, base = startT();
   S.pins.forEach(function (p, i) {
     var div = document.createElement('div');
     div.className = 'pin' + (S.sel === i ? ' sel' : '');
     var name = KIND[p.kind].label + (p.kind === 'lap' ? ' ' + (++lapNo) : '');
-    div.innerHTML = '<span class="dot" style="background:' + KIND[p.kind].col + '"></span><span>' + name + '</span><b>' + fmt(p.t) + ' 秒</b>';
+    if (S.mode === 'live' && p.kind === 'start') name = 'スタート';
+    if (S.mode === 'live' && p.kind === 'stop') name = 'ゴール';
+    div.innerHTML = '<span class="dot" style="background:' + KIND[p.kind].col + '"></span><span>' + name + '</span><b>' + fmt(p.t - base) + '</b>';
     div.addEventListener('click', function () { S.sel = i; render(); });
     list.appendChild(div);
   });
+  if (!S.pins.length) list.innerHTML = '<div class="hint">まだピンがありません</div>';
   drawTimeline(); renderTable();
 }
 function segments() {
@@ -194,22 +310,22 @@ function segments() {
   var bounds = [st.t].concat(pts.map(function (p) { return p.t; }));
   var segs = [];
   for (var i = 1; i < bounds.length; i++) segs.push(bounds[i] - bounds[i - 1]);
-  // if 停止 was pressed just after the final ラップ (same pass), drop that tiny tail segment
   if (stop && segs.length >= 2 && segs[segs.length - 1] < 0.5) segs.pop();
   return { segs: segs, total: stop ? stop.t - st.t : null };
 }
 function renderTable() {
   var box = document.getElementById('lapTable');
   var r = segments();
-  if (!r || !r.segs.length) { box.innerHTML = '<div class="hint">開始ピンとラップピンが入ると、ここにラップ表が出ます</div>'; return; }
+  if (!r || !r.segs.length) { box.innerHTML = '<div class="hint">ラップが入ると表示されます</div>'; return; }
   var best = Math.min.apply(null, r.segs);
   var rows = r.segs.map(function (s, i) {
-    return '<tr' + (s === best ? ' class="best"' : '') + '><th>' + (i + 1) + '周目</th><td>' + fmt(s) + '</td></tr>';
+    return '<tr' + (s === best && r.segs.length > 1 ? ' class="best"' : '') + '><th>' + (i + 1) + '周目</th><td>' + fmt(s) + '</td></tr>';
   }).join('');
   if (r.total !== null) rows += '<tr class="total"><th>合計（' + r.segs.length + '周）</th><td>' + fmt(r.total) + '</td></tr>';
-  box.innerHTML = '<table class="laps">' + rows + '</table><div class="hint" style="margin-top:6px">一番速い周は緑。合計は停止ピンを押したときに出ます</div>';
+  box.innerHTML = '<table class="laps">' + rows + '</table>';
 }
 
+// ---------- timeline ----------
 var tl = document.getElementById('timeline');
 function drawTimeline() {
   var w = tl.clientWidth || tl.parentElement.clientWidth - 28;
@@ -238,7 +354,7 @@ tl.addEventListener('pointerdown', function (e) {
 window.addEventListener('resize', drawTimeline);
 
 // test hooks
-window.LT2 = { state: S, press: press, vid: vid, segments: segments };
+window.LT3 = { state: S, press: press, segments: segments, startLive: startLive, setMode: setMode, vid: vid, isRecording: function () { return recording; } };
 render();
 </script>
 </body>
