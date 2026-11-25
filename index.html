@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>動画ラップタイマー たたき台 proto1</title>
+<title>動画ラップタイマー たたき台 proto2（手動シンプル版）</title>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; background: #0b0b0d; color: #f2f2f4; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.55; }
@@ -11,53 +11,46 @@
   h1 { font-size: 19px; margin: 4px 0 2px; }
   h1 .accent { color: #ff7a00; }
   .sub { font-size: 12.5px; color: #a7a7ae; margin-bottom: 12px; }
-  h2 { font-size: 15px; margin: 20px 0 8px; padding-left: 9px; border-left: 4px solid #ff7a00; }
   .card { background: #141416; border: 1px solid #26272c; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
   #stage { position: relative; width: 100%; background: #000; border-radius: 12px; overflow: hidden; }
   #stage video { display: block; width: 100%; }
-  #overlay { position: absolute; inset: 0; touch-action: none; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   button { background: #26272c; color: #f2f2f4; border: 1px solid #3a3b41; border-radius: 10px; padding: 9px 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
-  button.on { background: #ff7a00; color: #141416; border-color: #ff7a00; }
-  button.primary { background: #ff7a00; color: #141416; border-color: #ff7a00; }
-  button:disabled { opacity: .45; }
-  select, input[type="text"] { background: #101114; color: #f2f2f4; border: 1px solid #33343c; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+  button:disabled { opacity: .4; }
+  select { background: #101114; color: #f2f2f4; border: 1px solid #33343c; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
   input[type="file"] { color: #c9c9cf; font-size: 13px; }
-  input[type="range"] { accent-color: #ff7a00; }
   .time { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .hint { font-size: 12.5px; color: #a7a7ae; }
-  .chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #33343c; border-radius: 999px; padding: 5px 12px 5px 7px; font-size: 13.5px; font-weight: 700; }
-  .swatch { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #0b0b0d; box-shadow: 0 0 0 1px #3a3b41; display: inline-block; }
-  .chip.sel { border-color: #ff7a00; background: rgba(255,122,0,.12); }
-  #meterWrap { height: 12px; background: #101114; border: 1px solid #33343c; border-radius: 6px; overflow: hidden; }
-  #meter { height: 100%; width: 0%; background: #ff7a00; transition: width .05s linear; }
+  .bigbtns { display: flex; gap: 10px; }
+  .bigbtns button { flex: 1; padding: 20px 6px; font-size: 19px; border-radius: 14px; }
+  #startBtn { background: #2f9e63; border-color: #2f9e63; color: #fff; }
+  #lapBtn { background: #ff7a00; border-color: #ff7a00; color: #141416; }
+  #stopBtn { background: #e8e8ea; border-color: #e8e8ea; color: #141416; }
   #timeline { width: 100%; display: block; background: #101114; border: 1px solid #26272c; border-radius: 10px; }
-  table.laps { border-collapse: collapse; width: 100%; font-size: 13.5px; }
-  table.laps th, table.laps td { border: 1px solid #33343c; padding: 5px 8px; text-align: right; font-variant-numeric: tabular-nums; }
+  .pin { display: flex; gap: 8px; align-items: center; border: 1px solid #33343c; border-radius: 10px; padding: 7px 10px; margin: 6px 0; font-size: 14px; cursor: pointer; }
+  .pin.sel { border-color: #ff7a00; background: rgba(255,122,0,.12); }
+  .pin b { font-variant-numeric: tabular-nums; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; flex: none; }
+  table.laps { border-collapse: collapse; width: 100%; font-size: 15px; }
+  table.laps th, table.laps td { border: 1px solid #33343c; padding: 7px 10px; text-align: right; font-variant-numeric: tabular-nums; }
   table.laps th { background: #101114; text-align: left; }
-  .cand { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 1px solid #33343c; border-radius: 10px; padding: 7px 10px; margin: 6px 0; font-size: 13.5px; }
-  .cand b { font-variant-numeric: tabular-nums; }
-  details { font-size: 13px; color: #c9c9cf; }
-  details summary { cursor: pointer; font-weight: 700; color: #f2f2f4; }
-  .err { color: #ff6b61; font-size: 13px; }
+  table.laps tr.best td { color: #3ddc84; font-weight: 800; }
+  table.laps tr.total td { font-weight: 800; color: #ff7a00; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1><span class="accent">動画ラップタイマー</span> たたき台 proto1</h1>
-  <div class="sub">録画した動画を読み込んで、線の通過を候補検出し、ピンでラップを確定する流れの試作。検出は「線の上だけ」を見る方式。</div>
+  <h1><span class="accent">動画ラップタイマー</span> たたき台 proto2（手動シンプル版）</h1>
+  <div class="sub">動画を再生しながら、自分のタイミングで「開始」「ラップ」「停止」を押すだけ。ピンは後からコマ単位で直せます。</div>
 
   <div class="card">
     <div class="row">
       <input type="file" id="fileInput" accept="video/*">
-      <span class="hint" id="fileInfo">動画を選んでください（端末内の動画ファイル）</span>
+      <span class="hint" id="fileInfo">動画を選んでください</span>
     </div>
   </div>
 
-  <div id="stage">
-    <video id="vid" playsinline preload="auto"></video>
-    <canvas id="overlay"></canvas>
-  </div>
+  <div id="stage"><video id="vid" playsinline preload="auto"></video></div>
 
   <div class="card">
     <div class="row">
@@ -73,406 +66,150 @@
       <label class="hint">コマ送りの単位
         <select id="fpsSel"><option value="30">30fps</option><option value="60" selected>60fps</option></select>
       </label>
-      <button id="startPinBtn">📌 開始ピン（今の位置）</button>
-      <button id="goalPinBtn">🏁 ゴールピン（今の位置）</button>
+      <button id="undoBtn">↩ 最後のピンを消す</button>
+      <button id="resetBtn">全部リセット</button>
     </div>
   </div>
 
-  <h2>1. 線と車ピンの設定</h2>
   <div class="card">
-    <div class="row">
-      <button id="lineModeBtn">線を引く：OFF</button>
-      <span class="hint">ONにすると、動画の上で線の両端（○）をドラッグできます。スタート・ゴールの位置に合わせてください</span>
+    <div class="bigbtns">
+      <button id="startBtn" disabled>開始</button>
+      <button id="lapBtn" disabled>ラップ</button>
+      <button id="stopBtn" disabled>停止</button>
     </div>
-    <div class="row" style="margin-top:10px" id="carChips"></div>
+    <div class="hint" style="margin-top:8px">動画を再生して、スタートの瞬間に「開始」、スタートを通過するたびに「ラップ」、終わったら「停止」。押し遅れは下のピン調整で直せます</div>
+  </div>
+
+  <div class="card">
+    <canvas id="timeline" height="54"></canvas>
+    <div id="pinList" style="margin-top:8px"></div>
     <div class="row" style="margin-top:8px">
-      <input type="text" id="carName" placeholder="車の名前（例：1号車）" style="width:170px">
-      <button id="addCarBtn">車を追加</button>
-      <button id="colorModeBtn">色を取る：OFF</button>
-      <span class="hint">色を取るONで、選んだ車のボディを動画上でタップすると色を登録します</span>
+      <span class="hint">選んだピンを直す：</span>
+      <button id="nudgeBack">◀ 1コマ</button>
+      <button id="nudgeFwd">1コマ ▶</button>
+      <button id="delPinBtn">このピンを消す</button>
+      <button id="goPinBtn">このピンの位置を見る</button>
     </div>
   </div>
 
-  <h2>2. 通過候補の検出（自動）</h2>
   <div class="card">
-    <div class="row">
-      <button id="analyzeBtn" class="primary">検出する（最初からコマ送り解析）</button>
-      <label class="hint">感度 <input type="range" id="thrSlider" min="0.12" max="0.6" step="0.02" value="0.30" style="vertical-align:middle"> <span id="thrVal">0.30</span></label>
-    </div>
-    <div class="row" style="margin-top:8px"><span class="hint">線の変化量</span></div>
-    <div id="meterWrap"><div id="meter"></div></div>
-    <div class="hint" id="analyzeStatus">線を引いてから検出してください。解析中はコマを1つずつ送って調べます</div>
-    <div id="candList"></div>
-  </div>
-
-  <h2>3. タイムラインとラップ</h2>
-  <div class="card">
-    <canvas id="timeline" height="118"></canvas>
-    <div class="hint">帯をタップするとその位置へ移動します。候補（グレー）を採用すると、その車のラップピンになります</div>
-    <div class="row" style="margin-top:10px">
-      <label class="hint">ラップピンを打つ車
-        <select id="lapCarSel"></select>
-      </label>
-      <button id="lapPinBtn">🚩 今の位置にラップピン</button>
-      <button id="clearPinsBtn">ピンを全部消す</button>
-    </div>
-    <div id="lapTables" style="margin-top:10px"></div>
-  </div>
-
-  <div class="card">
-    <details>
-      <summary>使い方（テスト手順）</summary>
-      <ol>
-        <li>スマホでコースのスタート付近を撮った動画を用意（なるべく線の場所がずっと画面内）</li>
-        <li>「動画を選ぶ」から読み込む</li>
-        <li>「線を引く」をONにして、スタート・ゴールの線の両端をドラッグで合わせる</li>
-        <li>車を追加し、「色を取る」でボディの色を登録（複数台なら台数分）</li>
-        <li>「検出する」を押すと候補が並ぶ。候補ごとに車を選んで「採用」</li>
-        <li>候補が無い通過は、再生ヘッドを合わせて「ラップピン」で手打ち。ピンはタイムライン上で確認でき、ラップ表が自動計算される</li>
-        <li>開始ピンは最初の通過より前、ゴールピンは最後の通過に合わせると合計が出る</li>
-      </ol>
-      <p>※ たたき台の範囲： 線は画面に対して固定です（カメラが大きく動く動画では線がズレます）。チェッカー・継ぎ目への追従は次の段階で入れます。</p>
-    </details>
+    <div id="lapTable"></div>
   </div>
 </div>
 
 <script>
 'use strict';
-// ---------- state ----------
-var S = {
-  cars: [],            // {id, name, color:[r,g,b]|null}
-  carSeq: 0,
-  line: null,          // {x1,y1,x2,y2} relative 0..1
-  lineMode: false,
-  colorMode: false,
-  selCar: null,        // car id selected for color sampling / chips
-  startPin: null,      // seconds
-  goalPin: null,
-  laps: {},            // carId -> [times]
-  candidates: [],      // {t, score, color:[r,g,b]|null, suggested:carId|null}
-  analyzing: false
-};
+var S = { pins: [], sel: -1 };  // pins: {kind:'start'|'lap'|'stop', t}
 var vid = document.getElementById('vid');
-var overlay = document.getElementById('overlay');
-var octx = overlay.getContext('2d');
-var work = document.createElement('canvas');
-var wctx = work.getContext('2d', { willReadFrequently: true });
-
 function fmt(t) { return (Math.round(t * 100) / 100).toFixed(2); }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function fps() { return parseFloat(document.getElementById('fpsSel').value); }
 
-// ---------- video loading ----------
 document.getElementById('fileInput').addEventListener('change', function (e) {
   var f = e.target.files[0];
   if (!f) return;
   vid.src = URL.createObjectURL(f);
   document.getElementById('fileInfo').textContent = f.name;
+  S.pins = []; S.sel = -1; render();
 });
 vid.addEventListener('loadedmetadata', function () {
-  var st = document.getElementById('stage');
-  st.style.aspectRatio = vid.videoWidth + ' / ' + vid.videoHeight;
-  sizeOverlay();
-  if (!S.line) S.line = { x1: 0.62, y1: 0.08, x2: 0.62, y2: 0.92 };
-  drawOverlay(); drawTimeline();
+  document.getElementById('stage').style.aspectRatio = vid.videoWidth + ' / ' + vid.videoHeight;
+  render();
 });
-function sizeOverlay() {
-  var r = vid.getBoundingClientRect();
-  overlay.width = Math.max(2, Math.round(r.width));
-  overlay.height = Math.max(2, Math.round(r.height));
-}
-window.addEventListener('resize', function () { sizeOverlay(); drawOverlay(); drawTimeline(); });
 
-// ---------- transport ----------
 var playBtn = document.getElementById('playBtn');
 playBtn.addEventListener('click', function () { if (vid.paused) vid.play(); else vid.pause(); });
 vid.addEventListener('play', function () { playBtn.textContent = '⏸ 一時停止'; });
 vid.addEventListener('pause', function () { playBtn.textContent = '▶ 再生'; });
 document.getElementById('speedSel').addEventListener('change', function (e) { vid.playbackRate = parseFloat(e.target.value); });
-function fps() { return parseFloat(document.getElementById('fpsSel').value); }
 document.getElementById('stepBack').addEventListener('click', function () { vid.pause(); vid.currentTime = Math.max(0, vid.currentTime - 1 / fps()); });
 document.getElementById('stepFwd').addEventListener('click', function () { vid.pause(); vid.currentTime = Math.min(vid.duration || 0, vid.currentTime + 1 / fps()); });
 vid.addEventListener('timeupdate', function () {
   document.getElementById('timeLabel').textContent = fmt(vid.currentTime) + ' / ' + fmt(vid.duration || 0);
   drawTimeline();
 });
-vid.addEventListener('seeked', drawOverlay);
 
-// ---------- overlay: line + handles ----------
-function toPx(p) { return { x: p.x * overlay.width, y: p.y * overlay.height }; }
-function drawOverlay() {
-  octx.clearRect(0, 0, overlay.width, overlay.height);
-  if (!S.line) return;
-  var a = toPx({ x: S.line.x1, y: S.line.y1 }), b = toPx({ x: S.line.x2, y: S.line.y2 });
-  octx.strokeStyle = 'rgba(0,0,0,0.55)'; octx.lineWidth = 7;
-  octx.beginPath(); octx.moveTo(a.x, a.y); octx.lineTo(b.x, b.y); octx.stroke();
-  octx.strokeStyle = '#ff7a00'; octx.lineWidth = 3.5;
-  octx.beginPath(); octx.moveTo(a.x, a.y); octx.lineTo(b.x, b.y); octx.stroke();
-  [a, b].forEach(function (p) {
-    octx.beginPath(); octx.arc(p.x, p.y, 11, 0, Math.PI * 2);
-    octx.fillStyle = 'rgba(255,122,0,0.25)'; octx.fill();
-    octx.strokeStyle = '#ff7a00'; octx.lineWidth = 3; octx.stroke();
-  });
+function has(kind) { return S.pins.some(function (p) { return p.kind === kind; }); }
+function press(kind) {
+  if (!vid.duration) return;
+  if (kind === 'start' && has('start')) return;
+  if (kind === 'stop' && has('stop')) return;
+  S.pins.push({ kind: kind, t: vid.currentTime });
+  S.pins.sort(function (a, b) { return a.t - b.t; });
+  S.sel = S.pins.findIndex(function (p) { return p.kind === kind && p.t === vid.currentTime; });
+  render();
 }
-var dragEnd = null;
-function relPos(e) {
-  var r = overlay.getBoundingClientRect();
-  return { x: clamp((e.clientX - r.left) / r.width, 0, 1), y: clamp((e.clientY - r.top) / r.height, 0, 1) };
+document.getElementById('startBtn').addEventListener('click', function () { press('start'); });
+document.getElementById('lapBtn').addEventListener('click', function () { press('lap'); });
+document.getElementById('stopBtn').addEventListener('click', function () { press('stop'); vid.pause(); });
+document.getElementById('undoBtn').addEventListener('click', function () {
+  if (!S.pins.length) return;
+  S.pins.splice(S.pins.length - 1, 1); S.sel = -1; render();
+});
+document.getElementById('resetBtn').addEventListener('click', function () { S.pins = []; S.sel = -1; render(); });
+document.getElementById('nudgeBack').addEventListener('click', function () { nudge(-1); });
+document.getElementById('nudgeFwd').addEventListener('click', function () { nudge(1); });
+function nudge(dir) {
+  if (S.sel < 0 || !S.pins[S.sel]) return;
+  var p = S.pins[S.sel];
+  p.t = clamp(p.t + dir / fps(), 0, vid.duration || 0);
+  S.pins.sort(function (a, b) { return a.t - b.t; });
+  S.sel = S.pins.indexOf(p);
+  vid.currentTime = p.t;
+  render();
 }
-overlay.addEventListener('pointerdown', function (e) {
-  if (!vid.videoWidth) return;
-  var p = relPos(e);
-  if (S.colorMode) { sampleColor(p); return; }
-  if (!S.lineMode || !S.line) return;
-  var d1 = Math.hypot(p.x - S.line.x1, p.y - S.line.y1), d2 = Math.hypot(p.x - S.line.x2, p.y - S.line.y2);
-  if (Math.min(d1, d2) < 0.09) { dragEnd = d1 <= d2 ? '1' : '2'; overlay.setPointerCapture(e.pointerId); }
+document.getElementById('delPinBtn').addEventListener('click', function () {
+  if (S.sel < 0) return;
+  S.pins.splice(S.sel, 1); S.sel = -1; render();
 });
-overlay.addEventListener('pointermove', function (e) {
-  if (!dragEnd || !S.line) return;
-  var p = relPos(e);
-  if (dragEnd === '1') { S.line.x1 = p.x; S.line.y1 = p.y; } else { S.line.x2 = p.x; S.line.y2 = p.y; }
-  drawOverlay();
-});
-overlay.addEventListener('pointerup', function () { dragEnd = null; });
-document.getElementById('lineModeBtn').addEventListener('click', function () {
-  S.lineMode = !S.lineMode;
-  this.textContent = '線を引く：' + (S.lineMode ? 'ON' : 'OFF');
-  this.classList.toggle('on', S.lineMode);
+document.getElementById('goPinBtn').addEventListener('click', function () {
+  if (S.sel < 0 || !S.pins[S.sel]) return;
+  vid.pause(); vid.currentTime = S.pins[S.sel].t;
 });
 
-// ---------- cars ----------
-function renderCars() {
-  var box = document.getElementById('carChips');
-  box.innerHTML = '';
-  S.cars.forEach(function (c) {
-    var chip = document.createElement('span');
-    chip.className = 'chip' + (S.selCar === c.id ? ' sel' : '');
-    var sw = document.createElement('span'); sw.className = 'swatch';
-    sw.style.background = c.color ? 'rgb(' + c.color.join(',') + ')' : '#33343c';
-    chip.appendChild(sw);
-    chip.appendChild(document.createTextNode(c.name + (c.color ? '' : '（色なし）')));
-    chip.addEventListener('click', function () { S.selCar = c.id; renderCars(); syncLapCarSel(); });
-    box.appendChild(chip);
+var KIND = { start: { label: '開始', col: '#3ddc84' }, lap: { label: 'ラップ', col: '#ff7a00' }, stop: { label: '停止', col: '#e8e8ea' } };
+function render() {
+  var started = has('start'), stopped = has('stop');
+  document.getElementById('startBtn').disabled = !vid.duration || started;
+  document.getElementById('lapBtn').disabled = !started || stopped;
+  document.getElementById('stopBtn').disabled = !started || stopped;
+  var list = document.getElementById('pinList');
+  list.innerHTML = '';
+  var lapNo = 0;
+  S.pins.forEach(function (p, i) {
+    var div = document.createElement('div');
+    div.className = 'pin' + (S.sel === i ? ' sel' : '');
+    var name = KIND[p.kind].label + (p.kind === 'lap' ? ' ' + (++lapNo) : '');
+    div.innerHTML = '<span class="dot" style="background:' + KIND[p.kind].col + '"></span><span>' + name + '</span><b>' + fmt(p.t) + ' 秒</b>';
+    div.addEventListener('click', function () { S.sel = i; render(); });
+    list.appendChild(div);
   });
-  syncLapCarSel();
+  drawTimeline(); renderTable();
 }
-function syncLapCarSel() {
-  var sel = document.getElementById('lapCarSel');
-  var cur = sel.value;
-  sel.innerHTML = '';
-  S.cars.forEach(function (c) {
-    var o = document.createElement('option'); o.value = c.id; o.textContent = c.name; sel.appendChild(o);
-  });
-  if (S.selCar) sel.value = S.selCar; else if (cur) sel.value = cur;
+function segments() {
+  var st = S.pins.find(function (p) { return p.kind === 'start'; });
+  if (!st) return null;
+  var stop = S.pins.find(function (p) { return p.kind === 'stop'; });
+  var pts = S.pins.filter(function (p) { return p.t > st.t; }).sort(function (x, y) { return x.t - y.t; });
+  var bounds = [st.t].concat(pts.map(function (p) { return p.t; }));
+  var segs = [];
+  for (var i = 1; i < bounds.length; i++) segs.push(bounds[i] - bounds[i - 1]);
+  // if 停止 was pressed just after the final ラップ (same pass), drop that tiny tail segment
+  if (stop && segs.length >= 2 && segs[segs.length - 1] < 0.5) segs.pop();
+  return { segs: segs, total: stop ? stop.t - st.t : null };
 }
-document.getElementById('addCarBtn').addEventListener('click', function () {
-  var nameEl = document.getElementById('carName');
-  S.carSeq += 1;
-  var c = { id: 'car' + S.carSeq, name: nameEl.value.trim() || (S.carSeq + '号車'), color: null };
-  S.cars.push(c); S.laps[c.id] = [];
-  S.selCar = c.id; nameEl.value = '';
-  renderCars();
-});
-document.getElementById('colorModeBtn').addEventListener('click', function () {
-  S.colorMode = !S.colorMode;
-  this.textContent = '色を取る：' + (S.colorMode ? 'ON' : 'OFF');
-  this.classList.toggle('on', S.colorMode);
-});
-function sampleColor(p) {
-  if (!S.selCar) { alert('先に車を選んでください'); return; }
-  drawWork();
-  var x = Math.round(p.x * work.width), y = Math.round(p.y * work.height);
-  var sum = [0, 0, 0], n = 0;
-  for (var dy = -2; dy <= 2; dy++) for (var dx = -2; dx <= 2; dx++) {
-    var d = wctx.getImageData(clamp(x + dx, 0, work.width - 1), clamp(y + dy, 0, work.height - 1), 1, 1).data;
-    sum[0] += d[0]; sum[1] += d[1]; sum[2] += d[2]; n++;
-  }
-  var car = S.cars.find(function (c) { return c.id === S.selCar; });
-  if (car) car.color = sum.map(function (v) { return Math.round(v / n); });
-  renderCars();
-}
-function drawWork() {
-  var w = Math.min(640, vid.videoWidth), h = Math.round(w * vid.videoHeight / vid.videoWidth);
-  if (work.width !== w) { work.width = w; work.height = h; }
-  wctx.drawImage(vid, 0, 0, work.width, work.height);
-}
-function colorDist(a, b) {
-  var dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
-  return Math.sqrt(dr * dr * 0.5 + dg * dg + db * db * 0.5);
-}
-function nearestCar(color) {
-  var best = null, bd = 1e9;
-  S.cars.forEach(function (c) {
-    if (!c.color) return;
-    var d = colorDist(color, c.color);
-    if (d < bd) { bd = d; best = c.id; }
-  });
-  return bd < 90 ? best : null;
+function renderTable() {
+  var box = document.getElementById('lapTable');
+  var r = segments();
+  if (!r || !r.segs.length) { box.innerHTML = '<div class="hint">開始ピンとラップピンが入ると、ここにラップ表が出ます</div>'; return; }
+  var best = Math.min.apply(null, r.segs);
+  var rows = r.segs.map(function (s, i) {
+    return '<tr' + (s === best ? ' class="best"' : '') + '><th>' + (i + 1) + '周目</th><td>' + fmt(s) + '</td></tr>';
+  }).join('');
+  if (r.total !== null) rows += '<tr class="total"><th>合計（' + r.segs.length + '周）</th><td>' + fmt(r.total) + '</td></tr>';
+  box.innerHTML = '<table class="laps">' + rows + '</table><div class="hint" style="margin-top:6px">一番速い周は緑。合計は停止ピンを押したときに出ます</div>';
 }
 
-// ---------- detection: watch only the line strip ----------
-var NPTS = 28;
-function stripPoints() {
-  var pts = [];
-  for (var i = 0; i < NPTS; i++) {
-    var k = i / (NPTS - 1);
-    pts.push({ x: (S.line.x1 + (S.line.x2 - S.line.x1) * k) * work.width, y: (S.line.y1 + (S.line.y2 - S.line.y1) * k) * work.height });
-  }
-  return pts;
-}
-function readStrip(pts) {
-  var xs = pts.map(function (p) { return p.x; });
-  var x0 = clamp(Math.floor(Math.min.apply(null, xs)) - 3, 0, work.width - 1);
-  var x1 = clamp(Math.ceil(Math.max.apply(null, xs)) + 3, 0, work.width - 1);
-  var w = x1 - x0 + 1;
-  var img = wctx.getImageData(x0, 0, w, work.height).data;
-  return pts.map(function (p) {
-    var x = clamp(Math.round(p.x) - x0, 0, w - 1), y = clamp(Math.round(p.y), 0, work.height - 1);
-    var idx = (y * w + x) * 4;
-    return [img[idx], img[idx + 1], img[idx + 2]];
-  });
-}
-function seekTo(t) {
-  return new Promise(function (res) {
-    var done = false;
-    function fin() { if (!done) { done = true; vid.removeEventListener('seeked', fin); res(); } }
-    vid.addEventListener('seeked', fin);
-    vid.currentTime = t;
-    setTimeout(fin, 300);
-  });
-}
-var thrSlider = document.getElementById('thrSlider');
-thrSlider.addEventListener('input', function () { document.getElementById('thrVal').textContent = parseFloat(thrSlider.value).toFixed(2); });
-
-function analyze() {
-  return new Promise(async function (resolve) {
-    if (!S.line || !vid.duration) { resolve([]); return; }
-    S.analyzing = true; S.candidates = [];
-    renderCandidates();
-    var status = document.getElementById('analyzeStatus');
-    var meter = document.getElementById('meter');
-    vid.pause();
-    var step = 1 / fps();
-    var dur = vid.duration;
-    var pts = null, bg = null, inEvent = false, evMax = 0, evMaxT = 0, evColor = null, lastEnd = -10;
-    var thr = parseFloat(thrSlider.value);
-    await seekTo(0);
-    for (var t = 0; t <= dur && S.analyzing; t += step) {
-      await seekTo(t);
-      if (!S.analyzing) break;
-      drawWork();
-      if (!pts) pts = stripPoints();
-      var cur = readStrip(pts);
-      if (!bg) bg = cur.map(function (c) { return c.slice(); });
-      var colSum = [0, 0, 0], colN = 0;
-      var nd = cur.map(function (c, i) {
-        var d = Math.abs(c[0] - bg[i][0]) + Math.abs(c[1] - bg[i][1]) + Math.abs(c[2] - bg[i][2]);
-        if (d > 110) { colSum[0] += c[0]; colSum[1] += c[1]; colSum[2] += c[2]; colN++; }
-        return Math.min(1, d / 150);
-      });
-      // a car covers only part of the line: score = strongest sliding window (7 of 28 pts)
-      var WIN = 7, score = 0;
-      for (var s0 = 0; s0 + WIN <= nd.length; s0++) {
-        var acc = 0; for (var k2 = 0; k2 < WIN; k2++) acc += nd[s0 + k2];
-        score = Math.max(score, acc / WIN);
-      }
-      meter.style.width = Math.round(score * 100) + '%';
-      status.textContent = '解析中… ' + fmt(t) + ' / ' + fmt(dur) + ' 秒（変化量 ' + score.toFixed(2) + '）';
-      if (score < 0.14) {
-        cur.forEach(function (c, i) { for (var k = 0; k < 3; k++) bg[i][k] += (c[k] - bg[i][k]) * 0.06; });
-      }
-      if (!inEvent && score > thr && t - lastEnd > 0.8) {
-        inEvent = true; evMax = score; evMaxT = t; evColor = colN ? colSum.map(function (v) { return Math.round(v / colN); }) : null;
-      } else if (inEvent) {
-        if (score > evMax) { evMax = score; evMaxT = t; if (colN) evColor = colSum.map(function (v) { return Math.round(v / colN); }); }
-        if (score < thr * 0.6) {
-          inEvent = false; lastEnd = t;
-          S.candidates.push({ t: evMaxT, score: evMax, color: evColor, suggested: evColor ? nearestCar(evColor) : null });
-          renderCandidates();
-        }
-      }
-    }
-    S.analyzing = false;
-    status.textContent = '検出おわり： 候補 ' + S.candidates.length + ' 件';
-    meter.style.width = '0%';
-    drawTimeline();
-    resolve(S.candidates);
-  });
-}
-document.getElementById('analyzeBtn').addEventListener('click', function () {
-  if (S.analyzing) { S.analyzing = false; return; }
-  if (!S.line) { alert('先に線を引いてください'); return; }
-  analyze();
-});
-
-// ---------- candidates UI ----------
-function renderCandidates() {
-  var box = document.getElementById('candList');
-  box.innerHTML = '';
-  S.candidates.forEach(function (cd, i) {
-    var div = document.createElement('div'); div.className = 'cand';
-    var sw = document.createElement('span'); sw.className = 'swatch';
-    sw.style.background = cd.color ? 'rgb(' + cd.color.join(',') + ')' : '#33343c';
-    div.appendChild(sw);
-    var b = document.createElement('b'); b.textContent = fmt(cd.t) + ' 秒'; div.appendChild(b);
-    var sel = document.createElement('select');
-    var none = document.createElement('option'); none.value = ''; none.textContent = '車を選ぶ'; sel.appendChild(none);
-    S.cars.forEach(function (c) { var o = document.createElement('option'); o.value = c.id; o.textContent = c.name; sel.appendChild(o); });
-    if (cd.suggested) sel.value = cd.suggested;
-    div.appendChild(sel);
-    var go = document.createElement('button'); go.textContent = '見る';
-    go.addEventListener('click', function () { vid.pause(); vid.currentTime = cd.t; });
-    div.appendChild(go);
-    var ok = document.createElement('button'); ok.textContent = '採用'; ok.className = 'primary';
-    ok.addEventListener('click', function () {
-      if (!sel.value) { alert('車を選んでください'); return; }
-      S.laps[sel.value].push(cd.t); S.laps[sel.value].sort(function (a, b) { return a - b; });
-      S.candidates.splice(i, 1); renderCandidates(); drawTimeline(); renderLapTables();
-    });
-    div.appendChild(ok);
-    var del = document.createElement('button'); del.textContent = '消す';
-    del.addEventListener('click', function () { S.candidates.splice(i, 1); renderCandidates(); drawTimeline(); });
-    div.appendChild(del);
-    box.appendChild(div);
-  });
-  drawTimeline();
-}
-
-// ---------- pins & laps ----------
-document.getElementById('startPinBtn').addEventListener('click', function () { S.startPin = vid.currentTime; drawTimeline(); renderLapTables(); });
-document.getElementById('goalPinBtn').addEventListener('click', function () { S.goalPin = vid.currentTime; drawTimeline(); renderLapTables(); });
-document.getElementById('lapPinBtn').addEventListener('click', function () {
-  var id = document.getElementById('lapCarSel').value;
-  if (!id) { alert('先に車を追加してください'); return; }
-  S.laps[id].push(vid.currentTime); S.laps[id].sort(function (a, b) { return a - b; });
-  drawTimeline(); renderLapTables();
-});
-document.getElementById('clearPinsBtn').addEventListener('click', function () {
-  S.startPin = null; S.goalPin = null; S.candidates = [];
-  Object.keys(S.laps).forEach(function (k) { S.laps[k] = []; });
-  renderCandidates(); drawTimeline(); renderLapTables();
-});
-function renderLapTables() {
-  var box = document.getElementById('lapTables');
-  box.innerHTML = '';
-  S.cars.forEach(function (c) {
-    var pins = (S.laps[c.id] || []).slice().sort(function (a, b) { return a - b; });
-    var start = S.startPin !== null ? S.startPin : 0;
-    var bounds = [start].concat(pins);
-    if (S.goalPin !== null && S.goalPin > (bounds[bounds.length - 1] || 0)) bounds.push(S.goalPin);
-    var rows = '';
-    var total = 0;
-    for (var i = 1; i < bounds.length; i++) {
-      var lt = bounds[i] - bounds[i - 1]; total += lt;
-      rows += '<tr><th>' + i + '周目</th><td>' + fmt(lt) + '</td></tr>';
-    }
-    var tbl = document.createElement('table'); tbl.className = 'laps';
-    tbl.innerHTML = '<tr><th colspan="2">' + c.name + '（ピン ' + pins.length + ' 件）</th></tr>' + rows +
-      (rows ? '<tr><th>合計</th><td>' + fmt(total) + '</td></tr>' : '<tr><td colspan="2">まだラップがありません</td></tr>');
-    box.appendChild(tbl);
-  });
-}
-
-// ---------- timeline ----------
 var tl = document.getElementById('timeline');
 function drawTimeline() {
   var w = tl.clientWidth || tl.parentElement.clientWidth - 28;
@@ -482,29 +219,13 @@ function drawTimeline() {
   ctx.clearRect(0, 0, w, H);
   ctx.fillStyle = '#101114'; ctx.fillRect(0, 0, w, H);
   if (!dur) return;
-  var lanes = [{ label: '候補', items: S.candidates.map(function (c) { return { t: c.t, col: '#8e8e96' }; }) }];
-  S.cars.forEach(function (c) {
-    lanes.push({ label: c.name, items: (S.laps[c.id] || []).map(function (t) { return { t: t, col: c.color ? 'rgb(' + c.color.join(',') + ')' : '#ff7a00' }; }) });
+  ctx.fillStyle = '#26272c'; ctx.fillRect(0, 20, w, 16);
+  S.pins.forEach(function (p, i) {
+    var x = p.t / dur * w;
+    ctx.fillStyle = KIND[p.kind].col;
+    ctx.fillRect(x - 2, 16, 4, 24);
+    if (S.sel === i) { ctx.strokeStyle = '#fff'; ctx.strokeRect(x - 4, 13, 8, 30); }
   });
-  var laneH = Math.min(22, (H - 18) / lanes.length);
-  lanes.forEach(function (ln, li) {
-    var y = 14 + li * laneH;
-    ctx.fillStyle = '#26272c'; ctx.fillRect(0, y, w, laneH - 3);
-    ctx.fillStyle = '#a7a7ae'; ctx.font = '10px sans-serif'; ctx.fillText(ln.label, 4, y + laneH - 7);
-    ln.items.forEach(function (it) {
-      var x = it.t / dur * w;
-      ctx.fillStyle = it.col; ctx.fillRect(x - 1.5, y + 1, 3, laneH - 5);
-    });
-  });
-  function mark(t, col, label) {
-    if (t === null) return;
-    var x = t / dur * w;
-    ctx.strokeStyle = col; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(x, 10); ctx.lineTo(x, H - 4); ctx.stroke();
-    ctx.fillStyle = col; ctx.font = '10px sans-serif'; ctx.fillText(label, x + 3, 12);
-  }
-  mark(S.startPin, '#3ddc84', '開始');
-  mark(S.goalPin, '#ffffff', 'ゴール');
   var px = vid.currentTime / dur * w;
   ctx.strokeStyle = '#ff7a00'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
@@ -514,10 +235,11 @@ tl.addEventListener('pointerdown', function (e) {
   var r = tl.getBoundingClientRect();
   vid.currentTime = clamp((e.clientX - r.left) / r.width, 0, 1) * vid.duration;
 });
+window.addEventListener('resize', drawTimeline);
 
 // test hooks
-window.LT = { state: S, setLine: function (a, b, c, d) { S.line = { x1: a, y1: b, x2: c, y2: d }; drawOverlay(); }, addCar: function (name, color) { S.carSeq += 1; var cc = { id: 'car' + S.carSeq, name: name, color: color }; S.cars.push(cc); S.laps[cc.id] = []; renderCars(); return cc.id; }, analyze: analyze, vid: vid };
-renderCars(); renderLapTables();
+window.LT2 = { state: S, press: press, vid: vid, segments: segments };
+render();
 </script>
 </body>
 </html>
