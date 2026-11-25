@@ -1,832 +1,523 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>動画レーンタイム計測（半自動）</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>動画ラップタイマー たたき台 proto1</title>
 <style>
-:root {
-  --bg:#0b0c0f; --panel:#16181d; --border:rgba(255,255,255,0.08);
-  --text:#f3f4f6; --muted:#9ca3af; --blue:#6BAFD6; --green:#34c759; --orange:#ff9f0a; --pink:#e891b0;
-}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:"游ゴシック","Yu Gothic","Hiragino Sans","Meiryo",sans-serif}
-.app{max-width:720px;margin:0 auto;padding:8px 10px 28px}
-.title-row{display:flex;align-items:center;justify-content:center;gap:10px;margin:0 0 8px}
-.title-row span{font-size:12px;letter-spacing:.2em;color:#9aa3b2;font-weight:650}
-.help-btn{width:28px;height:28px;border-radius:50%;border:1px solid #3a3a3c;background:#1c1c1e;color:#6BAFD6;font-weight:900;font-size:14px;cursor:pointer;line-height:1;padding:0}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:8px}
-.card h2{margin:0 0 6px;font-size:11px;color:var(--muted);letter-spacing:.06em;font-weight:700}
-.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;align-items:end}
-label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted)}
-input,select{width:100%;border:1px solid #2a2d34;background:#0b0c0f;color:var(--text);border-radius:8px;padding:7px 9px;font-size:13px}
-.stage{position:relative;background:#000;border-radius:10px;overflow:hidden}
-.stage-inner{position:relative;width:100%;transform-origin:center center;transition:transform .2s ease}
-.stage.rot-90 .stage-inner{transform:rotate(90deg)}
-.stage.rot-180 .stage-inner{transform:rotate(180deg)}
-.stage.rot-270 .stage-inner{transform:rotate(-90deg)}
-.stage.rot-90,.stage.rot-270{display:flex;align-items:center;justify-content:center;min-height:34vh}
-.stage.rot-90 .stage-inner,.stage.rot-270 .stage-inner{width:34vh;max-width:100%}
-video{display:block;width:100%;height:auto;max-height:36vh;background:#000}
-.stage.rot-90 video,.stage.rot-270 video{max-height:none;width:100%}
-.overlay{position:absolute;left:0;right:0;top:0;padding:6px 10px;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.65),rgba(0,0,0,0))}
-.overlay .race-clock{font-variant-numeric:tabular-nums;font-size:24px;font-weight:900;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.8)}
-.overlay .race-sub{margin-top:1px;font-size:11px;font-weight:700;color:#d1d5db;text-shadow:0 1px 4px rgba(0,0,0,.8)}
-.overlay .race-laps{margin-top:3px;font-size:11px;font-weight:700;color:#6BAFD6;text-shadow:0 1px 4px rgba(0,0,0,.8);line-height:1.35;white-space:pre-line}
-.tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.tools button{border:0;border-radius:8px;padding:8px 10px;font-weight:700;font-size:11px;background:#3a3a3c;color:#fff;cursor:pointer}
-.clock-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:8px;padding:8px 10px;background:#0b0c0f;border:1px solid var(--border);border-radius:10px}
-.clock-label{font-size:11px;color:var(--muted);font-weight:700}
-.clock{font-variant-numeric:tabular-nums;font-size:22px;font-weight:900;color:#fff}
-.main-btn{width:100%;border:0;border-radius:10px;margin-top:8px;min-height:56px;font-size:18px;font-weight:900;cursor:pointer;color:#0b0c0f;box-shadow:0 6px 18px rgba(0,0,0,.3)}
-.main-btn.state-play{background:#6BAFD6}
-.main-btn.state-pass{background:#e891b0;color:#1c1c1e}
-.main-btn:disabled{opacity:.45;cursor:default}
-.main-sub{display:block;font-size:11px;font-weight:700;opacity:.85;margin-top:2px}
-.notice{display:none;margin-top:8px;padding:10px 12px;border-radius:10px;background:rgba(255,159,10,.15);border:1px solid rgba(255,159,10,.45);color:#ffd60a;font-size:13px;font-weight:700;line-height:1.45}
-.notice.show{display:block}
-.live{margin-top:8px;padding:8px 10px;border-radius:10px;background:#0b0c0f;border:1px solid var(--border)}
-.live .big{font-size:22px;font-weight:900;color:#fff}
-.live .meta{font-size:11px;color:var(--muted);margin-top:2px}
-.laps-box{margin-top:8px;padding:8px 10px;border-radius:10px;background:#0b0c0f;border:1px solid var(--border);font-size:11px;color:var(--muted)}
-.laps-box h3{margin:0 0 6px;font-size:11px;color:var(--muted);font-weight:700}
-.lap-row{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06);color:#f3f4f6;font-variant-numeric:tabular-nums}
-.lap-row:last-child{border-bottom:0}
-.delta{color:#6BAFD6;font-weight:700}
-.status{margin-top:6px;font-size:11px;color:var(--muted);min-height:1.2em}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;vertical-align:top}
-th{font-size:11px;color:var(--muted);font-weight:600}
-.ok{color:var(--green);font-weight:700}
-.wait{color:var(--orange)}
-.dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
-.lap-cell{font-size:12px;color:#d1d5db;line-height:1.45}
-.lap-cell span{color:#6BAFD6;font-weight:700}
-.save-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.save-row button{flex:1;min-width:110px;border:0;border-radius:8px;padding:10px;font-weight:800;font-size:12px;cursor:pointer}
-.b-blue{background:var(--blue);color:#0b0c0f}
-.b-gray{background:#3a3a3c;color:#fff}
-.b-green{background:var(--green);color:#0b0c0f}
-button:disabled{opacity:.45;cursor:default}
-.modal{display:none;position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:20px}
-.modal.show{display:flex}
-.modal-card{width:min(360px,100%);background:#1c1c1e;border-radius:14px;padding:18px 16px;border:1px solid var(--border)}
-.modal-card .title{font-size:16px;font-weight:900;margin-bottom:6px;text-align:center}
-.modal-card .sub{font-size:12px;color:var(--muted);text-align:center;margin-bottom:10px}
-.orient-choices,.name-row{display:flex;flex-direction:column;gap:8px}
-.orient-choices button{border:0;border-radius:8px;padding:12px;font-weight:800;cursor:pointer;background:#2c2c2e;color:#fff;font-size:13px}
-.name-row input{width:100%;border:1px solid #2a2d34;background:#0b0c0f;color:#fff;border-radius:8px;padding:10px;font-size:14px}
-.name-row .actions{display:flex;gap:8px}
-.name-row .actions button{flex:1;border:0;border-radius:8px;padding:12px;font-weight:800;cursor:pointer}
-.help-sheet{display:none;position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);align-items:flex-end;justify-content:center}
-.help-sheet.show{display:flex}
-.help-panel{width:min(520px,100%);max-height:80vh;overflow:auto;background:#1c1c1e;border-radius:16px 16px 0 0;padding:16px 16px 24px;border:1px solid rgba(255,255,255,.08)}
-.help-panel h3{margin:0 0 10px;font-size:16px}
-.help-panel p,.help-panel li{font-size:13px;line-height:1.6;color:#d1d5db;margin:0 0 8px}
-.help-panel ul{padding-left:1.2em;margin:0 0 10px}
-.help-close{width:100%;margin-top:12px;border:0;border-radius:8px;padding:12px;background:#3a3a3c;color:#fff;font-weight:800;cursor:pointer}
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0b0b0d; color: #f2f2f4; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.55; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 14px 12px 50px; }
+  h1 { font-size: 19px; margin: 4px 0 2px; }
+  h1 .accent { color: #ff7a00; }
+  .sub { font-size: 12.5px; color: #a7a7ae; margin-bottom: 12px; }
+  h2 { font-size: 15px; margin: 20px 0 8px; padding-left: 9px; border-left: 4px solid #ff7a00; }
+  .card { background: #141416; border: 1px solid #26272c; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+  #stage { position: relative; width: 100%; background: #000; border-radius: 12px; overflow: hidden; }
+  #stage video { display: block; width: 100%; }
+  #overlay { position: absolute; inset: 0; touch-action: none; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button { background: #26272c; color: #f2f2f4; border: 1px solid #3a3b41; border-radius: 10px; padding: 9px 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  button.on { background: #ff7a00; color: #141416; border-color: #ff7a00; }
+  button.primary { background: #ff7a00; color: #141416; border-color: #ff7a00; }
+  button:disabled { opacity: .45; }
+  select, input[type="text"] { background: #101114; color: #f2f2f4; border: 1px solid #33343c; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+  input[type="file"] { color: #c9c9cf; font-size: 13px; }
+  input[type="range"] { accent-color: #ff7a00; }
+  .time { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .hint { font-size: 12.5px; color: #a7a7ae; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #33343c; border-radius: 999px; padding: 5px 12px 5px 7px; font-size: 13.5px; font-weight: 700; }
+  .swatch { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #0b0b0d; box-shadow: 0 0 0 1px #3a3b41; display: inline-block; }
+  .chip.sel { border-color: #ff7a00; background: rgba(255,122,0,.12); }
+  #meterWrap { height: 12px; background: #101114; border: 1px solid #33343c; border-radius: 6px; overflow: hidden; }
+  #meter { height: 100%; width: 0%; background: #ff7a00; transition: width .05s linear; }
+  #timeline { width: 100%; display: block; background: #101114; border: 1px solid #26272c; border-radius: 10px; }
+  table.laps { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  table.laps th, table.laps td { border: 1px solid #33343c; padding: 5px 8px; text-align: right; font-variant-numeric: tabular-nums; }
+  table.laps th { background: #101114; text-align: left; }
+  .cand { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 1px solid #33343c; border-radius: 10px; padding: 7px 10px; margin: 6px 0; font-size: 13.5px; }
+  .cand b { font-variant-numeric: tabular-nums; }
+  details { font-size: 13px; color: #c9c9cf; }
+  details summary { cursor: pointer; font-weight: 700; color: #f2f2f4; }
+  .err { color: #ff6b61; font-size: 13px; }
 </style>
 </head>
 <body>
-<div class="app">
-  <h1 class="title-row">
-    <span>VIDEO LANE TIMER</span>
-    <button type="button" class="help-btn" id="btnHelp" title="説明">?</button>
-  </h1>
+<div class="wrap">
+  <h1><span class="accent">動画ラップタイマー</span> たたき台 proto1</h1>
+  <div class="sub">録画した動画を読み込んで、線の通過を候補検出し、ピンでラップを確定する流れの試作。検出は「線の上だけ」を見る方式。</div>
 
   <div class="card">
-    <h2>1. 準備</h2>
     <div class="row">
-      <label style="grid-column:1/-1">動画<input type="file" id="file" accept="video/*" /></label>
-      <label>レーン数<input type="number" id="laneN" min="1" max="8" value="3" /></label>
-      <label>計測するレーン<select id="activeLane"></select></label>
-      <label>周回数<input type="number" id="laps" min="1" max="50" value="3" /></label>
+      <input type="file" id="fileInput" accept="video/*">
+      <span class="hint" id="fileInfo">動画を選んでください（端末内の動画ファイル）</span>
     </div>
+  </div>
+
+  <div id="stage">
+    <video id="vid" playsinline preload="auto"></video>
+    <canvas id="overlay"></canvas>
   </div>
 
   <div class="card">
-    <h2>2. 動画（秒数オーバーレイ付き）</h2>
-    <div class="stage" id="stage">
-      <div class="stage-inner" id="stageInner">
-        <video id="video" playsinline></video>
-        <div class="overlay" id="overlay">
-          <div class="race-clock" id="raceClock">—</div>
-          <div class="race-sub" id="raceSub">スタート前</div>
-          <div class="race-sub" id="raceLap">ラップ秒差</div>
-          <div class="race-laps" id="raceLapList">—</div>
-        </div>
-      </div>
+    <div class="row">
+      <button id="playBtn">▶ 再生</button>
+      <button id="stepBack">⏮ 1コマ戻る</button>
+      <button id="stepFwd">1コマ進む ⏭</button>
+      <span class="time" id="timeLabel">0.00 / 0.00</span>
     </div>
-    <div class="tools">
-      <button type="button" id="btnRotRight">右に回す</button>
-      <button type="button" id="btnRotLeft">左に回す</button>
-      <button type="button" id="btnRotReset">向きリセット</button>
-      <button type="button" id="btnReplay">再度再生</button>
-      <button type="button" id="btnPlayReset">再生リセット</button>
-      <button type="button" id="btnResetLane">記録を消す</button>
+    <div class="row" style="margin-top:8px">
+      <label class="hint">再生速度
+        <select id="speedSel"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select>
+      </label>
+      <label class="hint">コマ送りの単位
+        <select id="fpsSel"><option value="30">30fps</option><option value="60" selected>60fps</option></select>
+      </label>
+      <button id="startPinBtn">📌 開始ピン（今の位置）</button>
+      <button id="goalPinBtn">🏁 ゴールピン（今の位置）</button>
     </div>
-    <div class="clock-row">
-      <div class="clock-label">動画の秒数</div>
-      <div class="clock" id="clock">0.000</div>
+  </div>
+
+  <h2>1. 線と車ピンの設定</h2>
+  <div class="card">
+    <div class="row">
+      <button id="lineModeBtn">線を引く：OFF</button>
+      <span class="hint">ONにすると、動画の上で線の両端（○）をドラッグできます。スタート・ゴールの位置に合わせてください</span>
     </div>
-    <button type="button" class="main-btn state-play" id="mainBtn" disabled>
-      再生<span class="main-sub" id="mainSub">動画を選択してください</span>
-    </button>
-    <div class="notice" id="notice"></div>
-    <div class="live">
-      <div class="big" id="liveTime">—</div>
-      <div class="meta" id="liveMeta">まだ計測していません</div>
+    <div class="row" style="margin-top:10px" id="carChips"></div>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="carName" placeholder="車の名前（例：1号車）" style="width:170px">
+      <button id="addCarBtn">車を追加</button>
+      <button id="colorModeBtn">色を取る：OFF</button>
+      <span class="hint">色を取るONで、選んだ車のボディを動画上でタップすると色を登録します</span>
     </div>
-    <div class="laps-box">
-      <h3>ラップ時間 と 前周との差</h3>
-      <div id="lapsList">まだありません</div>
+  </div>
+
+  <h2>2. 通過候補の検出（自動）</h2>
+  <div class="card">
+    <div class="row">
+      <button id="analyzeBtn" class="primary">検出する（最初からコマ送り解析）</button>
+      <label class="hint">感度 <input type="range" id="thrSlider" min="0.12" max="0.6" step="0.02" value="0.30" style="vertical-align:middle"> <span id="thrVal">0.30</span></label>
     </div>
-    <div class="status" id="status">動画を選んでください</div>
+    <div class="row" style="margin-top:8px"><span class="hint">線の変化量</span></div>
+    <div id="meterWrap"><div id="meter"></div></div>
+    <div class="hint" id="analyzeStatus">線を引いてから検出してください。解析中はコマを1つずつ送って調べます</div>
+    <div id="candList"></div>
+  </div>
+
+  <h2>3. タイムラインとラップ</h2>
+  <div class="card">
+    <canvas id="timeline" height="118"></canvas>
+    <div class="hint">帯をタップするとその位置へ移動します。候補（グレー）を採用すると、その車のラップピンになります</div>
+    <div class="row" style="margin-top:10px">
+      <label class="hint">ラップピンを打つ車
+        <select id="lapCarSel"></select>
+      </label>
+      <button id="lapPinBtn">🚩 今の位置にラップピン</button>
+      <button id="clearPinsBtn">ピンを全部消す</button>
+    </div>
+    <div id="lapTables" style="margin-top:10px"></div>
   </div>
 
   <div class="card">
-    <h2>3. 結果</h2>
-    <table>
-      <thead><tr><th>レーン</th><th>合計</th><th>ラップ / 前周差</th><th>状態</th></tr></thead>
-      <tbody id="tbody"><tr><td colspan="4" style="color:#9ca3af">未記録</td></tr></tbody>
-    </table>
-    <div class="save-row">
-      <button type="button" class="b-green" id="btnSave">結果を保存</button>
-      <button type="button" class="b-blue" id="btnExport">JSON出力</button>
-      <button type="button" class="b-blue" id="btnExportVideo">秒数入り動画を保存</button>
-      <button type="button" class="b-gray" id="btnClearAll">全リセット</button>
-    </div>
-    <div class="status" id="saveStatus"></div>
-  </div>
-</div>
-
-<canvas id="exportCv" style="display:none"></canvas>
-
-<div class="modal" id="modal"><div class="modal-card"><div class="title" id="modalTitle">集計中</div><div class="sub" id="modalSub">タイムをまとめています…</div></div></div>
-
-<div class="modal" id="orientModal">
-  <div class="modal-card">
-    <div class="title">書き出しの向き</div>
-    <div class="sub">横動画の見え方を選んでください</div>
-    <div class="orient-choices">
-      <button type="button" data-rot="0">現状のまま</button>
-      <button type="button" data-rot="90">90度回転</button>
-      <button type="button" data-rot="-90">-90度回転</button>
-      <button type="button" id="orientCancel" style="background:#3a3a3c">キャンセル</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal" id="nameModal">
-  <div class="modal-card">
-    <div class="title">ファイル名</div>
-    <div class="sub">保存する名前を入力してください</div>
-    <div class="name-row">
-      <input type="text" id="fileNameInput" />
-      <div class="actions">
-        <button type="button" class="b-blue" id="nameOk">保存</button>
-        <button type="button" class="b-gray" id="nameCancel">キャンセル</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="help-sheet" id="helpSheet">
-  <div class="help-panel">
-    <h3>使い方</h3>
-    <p>長いボタン1つで「再生 → スタート → 1周終了 → … → ゴール」。</p>
-    <p>記録した通過時刻に合わせて、動画上にレース秒数が同期表示されます。</p>
-    <ul>
-      <li>1回目→スタート</li>
-      <li>2回目→1周終了</li>
-      <li>3回目→2周終了</li>
-      <li>4回目→3周終了（ゴール）</li>
-    </ul>
-    <p>「右に回す／左に回す」で、読み込み後の表示向きを変えられます。</p>
-    <p>秒数入り動画（WebM）は、書き出し後に端末の<strong>ダウンロード</strong>へ保存されます。可能なかぎり元の音声も残します。</p>
-    <p><strong>iPhoneについて：</strong> WebM は標準の写真アプリでは再生できないことが多いです。再生する場合は <strong>VLC</strong> などの対応アプリを使用してください。</p>
-    <p><strong>音声について（環境差）</strong></p>
-    <ul>
-      <li>Android Chrome など：音声付きになりやすい</li>
-      <li>iPhone Safari：captureStream 制限で無音のままのことがある</li>
-    </ul>
-    <p>iPhone で無音の場合は、ブラウザ側の制限であることが多いです。</p>
-    <button type="button" class="help-close" id="helpClose">閉じる</button>
+    <details>
+      <summary>使い方（テスト手順）</summary>
+      <ol>
+        <li>スマホでコースのスタート付近を撮った動画を用意（なるべく線の場所がずっと画面内）</li>
+        <li>「動画を選ぶ」から読み込む</li>
+        <li>「線を引く」をONにして、スタート・ゴールの線の両端をドラッグで合わせる</li>
+        <li>車を追加し、「色を取る」でボディの色を登録（複数台なら台数分）</li>
+        <li>「検出する」を押すと候補が並ぶ。候補ごとに車を選んで「採用」</li>
+        <li>候補が無い通過は、再生ヘッドを合わせて「ラップピン」で手打ち。ピンはタイムライン上で確認でき、ラップ表が自動計算される</li>
+        <li>開始ピンは最初の通過より前、ゴールピンは最後の通過に合わせると合計が出る</li>
+      </ol>
+      <p>※ たたき台の範囲： 線は画面に対して固定です（カメラが大きく動く動画では線がズレます）。チェッカー・継ぎ目への追従は次の段階で入れます。</p>
+    </details>
   </div>
 </div>
 
 <script>
-(function(){
 'use strict';
-var COLORS=['#6BAFD6','#e891b0','#ff9f0a','#34c759','#af52de','#ff3b30','#64d2ff','#ffd60a'];
-var STORAGE_KEY='video_lane_timer_results_v1';
-var video=document.getElementById('video');
-var mainBtn=document.getElementById('mainBtn');
-var mainSub=document.getElementById('mainSub');
-var clock=document.getElementById('clock');
-var raceClock=document.getElementById('raceClock');
-var raceSub=document.getElementById('raceSub');
-var raceLap=document.getElementById('raceLap');
-var statusEl=document.getElementById('status');
-var noticeEl=document.getElementById('notice');
-var liveTime=document.getElementById('liveTime');
-var liveMeta=document.getElementById('liveMeta');
-var tbody=document.getElementById('tbody');
-var activeLaneSel=document.getElementById('activeLane');
-var exportCv=document.getElementById('exportCv');
-var exportCtx=exportCv.getContext('2d');
-var modal=document.getElementById('modal');
+// ---------- state ----------
+var S = {
+  cars: [],            // {id, name, color:[r,g,b]|null}
+  carSeq: 0,
+  line: null,          // {x1,y1,x2,y2} relative 0..1
+  lineMode: false,
+  colorMode: false,
+  selCar: null,        // car id selected for color sampling / chips
+  startPin: null,      // seconds
+  goalPin: null,
+  laps: {},            // carId -> [times]
+  candidates: [],      // {t, score, color:[r,g,b]|null, suggested:carId|null}
+  analyzing: false
+};
+var vid = document.getElementById('vid');
+var overlay = document.getElementById('overlay');
+var octx = overlay.getContext('2d');
+var work = document.createElement('canvas');
+var wctx = work.getContext('2d', { willReadFrequently: true });
 
-var state={ready:false,phase:'idle',passIndex:0,hits:[],raf:0,exporting:false,viewRot:0};
+function fmt(t) { return (Math.round(t * 100) / 100).toFixed(2); }
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
-function $(id){return document.getElementById(id);}
-function laneCount(){return Math.max(1,Math.min(8,parseInt($('laneN').value,10)||3));}
-function lapCount(){return Math.max(1,Math.min(50,parseInt($('laps').value,10)||3));}
-function needHits(){return lapCount()+1;}
-function activeIndex(){return laneCount()-(parseInt(activeLaneSel.value,10)||1);}
-function setStatus(t){statusEl.textContent=t;}
-function showNotice(msg){
-  if(!msg){noticeEl.classList.remove('show');noticeEl.textContent='';return;}
-  noticeEl.textContent=msg;
-  noticeEl.classList.add('show');
+// ---------- video loading ----------
+document.getElementById('fileInput').addEventListener('change', function (e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  vid.src = URL.createObjectURL(f);
+  document.getElementById('fileInfo').textContent = f.name;
+});
+vid.addEventListener('loadedmetadata', function () {
+  var st = document.getElementById('stage');
+  st.style.aspectRatio = vid.videoWidth + ' / ' + vid.videoHeight;
+  sizeOverlay();
+  if (!S.line) S.line = { x1: 0.62, y1: 0.08, x2: 0.62, y2: 0.92 };
+  drawOverlay(); drawTimeline();
+});
+function sizeOverlay() {
+  var r = vid.getBoundingClientRect();
+  overlay.width = Math.max(2, Math.round(r.width));
+  overlay.height = Math.max(2, Math.round(r.height));
 }
-function passLabel(n){
-  n=n|0;
-  if(n<=1)return 'スタート';
-  var need=needHits();
-  if(n>=need)return (need-1)+'周終了（ゴール）';
-  return (n-1)+'周終了';
+window.addEventListener('resize', function () { sizeOverlay(); drawOverlay(); drawTimeline(); });
+
+// ---------- transport ----------
+var playBtn = document.getElementById('playBtn');
+playBtn.addEventListener('click', function () { if (vid.paused) vid.play(); else vid.pause(); });
+vid.addEventListener('play', function () { playBtn.textContent = '⏸ 一時停止'; });
+vid.addEventListener('pause', function () { playBtn.textContent = '▶ 再生'; });
+document.getElementById('speedSel').addEventListener('change', function (e) { vid.playbackRate = parseFloat(e.target.value); });
+function fps() { return parseFloat(document.getElementById('fpsSel').value); }
+document.getElementById('stepBack').addEventListener('click', function () { vid.pause(); vid.currentTime = Math.max(0, vid.currentTime - 1 / fps()); });
+document.getElementById('stepFwd').addEventListener('click', function () { vid.pause(); vid.currentTime = Math.min(vid.duration || 0, vid.currentTime + 1 / fps()); });
+vid.addEventListener('timeupdate', function () {
+  document.getElementById('timeLabel').textContent = fmt(vid.currentTime) + ' / ' + fmt(vid.duration || 0);
+  drawTimeline();
+});
+vid.addEventListener('seeked', drawOverlay);
+
+// ---------- overlay: line + handles ----------
+function toPx(p) { return { x: p.x * overlay.width, y: p.y * overlay.height }; }
+function drawOverlay() {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (!S.line) return;
+  var a = toPx({ x: S.line.x1, y: S.line.y1 }), b = toPx({ x: S.line.x2, y: S.line.y2 });
+  octx.strokeStyle = 'rgba(0,0,0,0.55)'; octx.lineWidth = 7;
+  octx.beginPath(); octx.moveTo(a.x, a.y); octx.lineTo(b.x, b.y); octx.stroke();
+  octx.strokeStyle = '#ff7a00'; octx.lineWidth = 3.5;
+  octx.beginPath(); octx.moveTo(a.x, a.y); octx.lineTo(b.x, b.y); octx.stroke();
+  [a, b].forEach(function (p) {
+    octx.beginPath(); octx.arc(p.x, p.y, 11, 0, Math.PI * 2);
+    octx.fillStyle = 'rgba(255,122,0,0.25)'; octx.fill();
+    octx.strokeStyle = '#ff7a00'; octx.lineWidth = 3; octx.stroke();
+  });
 }
-function ensureHitsSize(){
-  var n=laneCount();
-  while(state.hits.length<n)state.hits.push([]);
-  if(state.hits.length>n)state.hits.length=n;
+var dragEnd = null;
+function relPos(e) {
+  var r = overlay.getBoundingClientRect();
+  return { x: clamp((e.clientX - r.left) / r.width, 0, 1), y: clamp((e.clientY - r.top) / r.height, 0, 1) };
 }
-function activeHits(){ensureHitsSize();return state.hits[activeIndex()]||[];}
-function rebuildLaneSelect(){
-  var n=laneCount(),cur=activeLaneSel.value;
-  activeLaneSel.innerHTML='';
-  for(var no=1;no<=n;no++){
-    var opt=document.createElement('option');
-    opt.value=String(no);opt.textContent='レーン '+no;
-    activeLaneSel.appendChild(opt);
+overlay.addEventListener('pointerdown', function (e) {
+  if (!vid.videoWidth) return;
+  var p = relPos(e);
+  if (S.colorMode) { sampleColor(p); return; }
+  if (!S.lineMode || !S.line) return;
+  var d1 = Math.hypot(p.x - S.line.x1, p.y - S.line.y1), d2 = Math.hypot(p.x - S.line.x2, p.y - S.line.y2);
+  if (Math.min(d1, d2) < 0.09) { dragEnd = d1 <= d2 ? '1' : '2'; overlay.setPointerCapture(e.pointerId); }
+});
+overlay.addEventListener('pointermove', function (e) {
+  if (!dragEnd || !S.line) return;
+  var p = relPos(e);
+  if (dragEnd === '1') { S.line.x1 = p.x; S.line.y1 = p.y; } else { S.line.x2 = p.x; S.line.y2 = p.y; }
+  drawOverlay();
+});
+overlay.addEventListener('pointerup', function () { dragEnd = null; });
+document.getElementById('lineModeBtn').addEventListener('click', function () {
+  S.lineMode = !S.lineMode;
+  this.textContent = '線を引く：' + (S.lineMode ? 'ON' : 'OFF');
+  this.classList.toggle('on', S.lineMode);
+});
+
+// ---------- cars ----------
+function renderCars() {
+  var box = document.getElementById('carChips');
+  box.innerHTML = '';
+  S.cars.forEach(function (c) {
+    var chip = document.createElement('span');
+    chip.className = 'chip' + (S.selCar === c.id ? ' sel' : '');
+    var sw = document.createElement('span'); sw.className = 'swatch';
+    sw.style.background = c.color ? 'rgb(' + c.color.join(',') + ')' : '#33343c';
+    chip.appendChild(sw);
+    chip.appendChild(document.createTextNode(c.name + (c.color ? '' : '（色なし）')));
+    chip.addEventListener('click', function () { S.selCar = c.id; renderCars(); syncLapCarSel(); });
+    box.appendChild(chip);
+  });
+  syncLapCarSel();
+}
+function syncLapCarSel() {
+  var sel = document.getElementById('lapCarSel');
+  var cur = sel.value;
+  sel.innerHTML = '';
+  S.cars.forEach(function (c) {
+    var o = document.createElement('option'); o.value = c.id; o.textContent = c.name; sel.appendChild(o);
+  });
+  if (S.selCar) sel.value = S.selCar; else if (cur) sel.value = cur;
+}
+document.getElementById('addCarBtn').addEventListener('click', function () {
+  var nameEl = document.getElementById('carName');
+  S.carSeq += 1;
+  var c = { id: 'car' + S.carSeq, name: nameEl.value.trim() || (S.carSeq + '号車'), color: null };
+  S.cars.push(c); S.laps[c.id] = [];
+  S.selCar = c.id; nameEl.value = '';
+  renderCars();
+});
+document.getElementById('colorModeBtn').addEventListener('click', function () {
+  S.colorMode = !S.colorMode;
+  this.textContent = '色を取る：' + (S.colorMode ? 'ON' : 'OFF');
+  this.classList.toggle('on', S.colorMode);
+});
+function sampleColor(p) {
+  if (!S.selCar) { alert('先に車を選んでください'); return; }
+  drawWork();
+  var x = Math.round(p.x * work.width), y = Math.round(p.y * work.height);
+  var sum = [0, 0, 0], n = 0;
+  for (var dy = -2; dy <= 2; dy++) for (var dx = -2; dx <= 2; dx++) {
+    var d = wctx.getImageData(clamp(x + dx, 0, work.width - 1), clamp(y + dy, 0, work.height - 1), 1, 1).data;
+    sum[0] += d[0]; sum[1] += d[1]; sum[2] += d[2]; n++;
   }
-  activeLaneSel.value=(cur&&+cur<=n)?cur:'1';
-  ensureHitsSize();
+  var car = S.cars.find(function (c) { return c.id === S.selCar; });
+  if (car) car.color = sum.map(function (v) { return Math.round(v / n); });
+  renderCars();
+}
+function drawWork() {
+  var w = Math.min(640, vid.videoWidth), h = Math.round(w * vid.videoHeight / vid.videoWidth);
+  if (work.width !== w) { work.width = w; work.height = h; }
+  wctx.drawImage(vid, 0, 0, work.width, work.height);
+}
+function colorDist(a, b) {
+  var dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
+  return Math.sqrt(dr * dr * 0.5 + dg * dg + db * db * 0.5);
+}
+function nearestCar(color) {
+  var best = null, bd = 1e9;
+  S.cars.forEach(function (c) {
+    if (!c.color) return;
+    var d = colorDist(color, c.color);
+    if (d < bd) { bd = d; best = c.id; }
+  });
+  return bd < 90 ? best : null;
 }
 
-function applyViewRot(){
-  var stage=$('stage');
-  stage.classList.remove('rot-90','rot-180','rot-270');
-  if(state.viewRot===90)stage.classList.add('rot-90');
-  else if(state.viewRot===180)stage.classList.add('rot-180');
-  else if(state.viewRot===-90)stage.classList.add('rot-270');
+// ---------- detection: watch only the line strip ----------
+var NPTS = 28;
+function stripPoints() {
+  var pts = [];
+  for (var i = 0; i < NPTS; i++) {
+    var k = i / (NPTS - 1);
+    pts.push({ x: (S.line.x1 + (S.line.x2 - S.line.x1) * k) * work.width, y: (S.line.y1 + (S.line.y2 - S.line.y1) * k) * work.height });
+  }
+  return pts;
 }
-function rotateView(delta){
-  var order=[0,90,180,-90];
-  var i=order.indexOf(state.viewRot); if(i<0)i=0;
-  i=(i+delta+order.length)%order.length;
-  state.viewRot=order[i];
-  applyViewRot();
-  setStatus('表示向き: '+(state.viewRot===0?'そのまま':state.viewRot+'°'));
+function readStrip(pts) {
+  var xs = pts.map(function (p) { return p.x; });
+  var x0 = clamp(Math.floor(Math.min.apply(null, xs)) - 3, 0, work.width - 1);
+  var x1 = clamp(Math.ceil(Math.max.apply(null, xs)) + 3, 0, work.width - 1);
+  var w = x1 - x0 + 1;
+  var img = wctx.getImageData(x0, 0, w, work.height).data;
+  return pts.map(function (p) {
+    var x = clamp(Math.round(p.x) - x0, 0, w - 1), y = clamp(Math.round(p.y), 0, work.height - 1);
+    var idx = (y * w + x) * 4;
+    return [img[idx], img[idx + 1], img[idx + 2]];
+  });
 }
+function seekTo(t) {
+  return new Promise(function (res) {
+    var done = false;
+    function fin() { if (!done) { done = true; vid.removeEventListener('seeked', fin); res(); } }
+    vid.addEventListener('seeked', fin);
+    vid.currentTime = t;
+    setTimeout(fin, 300);
+  });
+}
+var thrSlider = document.getElementById('thrSlider');
+thrSlider.addEventListener('input', function () { document.getElementById('thrVal').textContent = parseFloat(thrSlider.value).toFixed(2); });
 
-function formatLapDeltas(arr, upTo){
-  // 各周のラップ秒 + 前周との差分（例 12.345 と 11.200 → 差 -1.145）
-  if(!arr||arr.length<2) return [];
-  var end=typeof upTo==='number'?upTo:arr.length-1;
-  end=Math.min(end, arr.length-1);
-  var lines=[];
-  var prevLap=null;
-  for(var k=1;k<=end;k++){
-    var lap=arr[k]-arr[k-1];
-    var label=passLabel(k)+'→'+passLabel(k+1);
-    var line=label+'  '+lap.toFixed(3)+'s';
-    if(prevLap!=null){
-      var diff=lap-prevLap;
-      var sign=diff>0?'+':'';
-      line+='  （前周差 '+sign+diff.toFixed(3)+'s）';
+function analyze() {
+  return new Promise(async function (resolve) {
+    if (!S.line || !vid.duration) { resolve([]); return; }
+    S.analyzing = true; S.candidates = [];
+    renderCandidates();
+    var status = document.getElementById('analyzeStatus');
+    var meter = document.getElementById('meter');
+    vid.pause();
+    var step = 1 / fps();
+    var dur = vid.duration;
+    var pts = null, bg = null, inEvent = false, evMax = 0, evMaxT = 0, evColor = null, lastEnd = -10;
+    var thr = parseFloat(thrSlider.value);
+    await seekTo(0);
+    for (var t = 0; t <= dur && S.analyzing; t += step) {
+      await seekTo(t);
+      if (!S.analyzing) break;
+      drawWork();
+      if (!pts) pts = stripPoints();
+      var cur = readStrip(pts);
+      if (!bg) bg = cur.map(function (c) { return c.slice(); });
+      var colSum = [0, 0, 0], colN = 0;
+      var nd = cur.map(function (c, i) {
+        var d = Math.abs(c[0] - bg[i][0]) + Math.abs(c[1] - bg[i][1]) + Math.abs(c[2] - bg[i][2]);
+        if (d > 110) { colSum[0] += c[0]; colSum[1] += c[1]; colSum[2] += c[2]; colN++; }
+        return Math.min(1, d / 150);
+      });
+      // a car covers only part of the line: score = strongest sliding window (7 of 28 pts)
+      var WIN = 7, score = 0;
+      for (var s0 = 0; s0 + WIN <= nd.length; s0++) {
+        var acc = 0; for (var k2 = 0; k2 < WIN; k2++) acc += nd[s0 + k2];
+        score = Math.max(score, acc / WIN);
+      }
+      meter.style.width = Math.round(score * 100) + '%';
+      status.textContent = '解析中… ' + fmt(t) + ' / ' + fmt(dur) + ' 秒（変化量 ' + score.toFixed(2) + '）';
+      if (score < 0.14) {
+        cur.forEach(function (c, i) { for (var k = 0; k < 3; k++) bg[i][k] += (c[k] - bg[i][k]) * 0.06; });
+      }
+      if (!inEvent && score > thr && t - lastEnd > 0.8) {
+        inEvent = true; evMax = score; evMaxT = t; evColor = colN ? colSum.map(function (v) { return Math.round(v / colN); }) : null;
+      } else if (inEvent) {
+        if (score > evMax) { evMax = score; evMaxT = t; if (colN) evColor = colSum.map(function (v) { return Math.round(v / colN); }); }
+        if (score < thr * 0.6) {
+          inEvent = false; lastEnd = t;
+          S.candidates.push({ t: evMaxT, score: evMax, color: evColor, suggested: evColor ? nearestCar(evColor) : null });
+          renderCandidates();
+        }
+      }
     }
-    lines.push(line);
-    prevLap=lap;
-  }
-  return lines;
+    S.analyzing = false;
+    status.textContent = '検出おわり： 候補 ' + S.candidates.length + ' 件';
+    meter.style.width = '0%';
+    drawTimeline();
+    resolve(S.candidates);
+  });
 }
-function formatLapRowsHtml(arr){
-  if(!arr||arr.length<2) return '';
-  var html='';
-  var prevLap=null;
-  for(var k=1;k<arr.length;k++){
-    var lap=arr[k]-arr[k-1];
-    var label=passLabel(k)+' → '+passLabel(k+1);
-    var right=lap.toFixed(3)+' 秒';
-    if(prevLap!=null){
-      var diff=lap-prevLap;
-      var sign=diff>0?'+':'';
-      right+=' <span style="color:#ffd60a">前周差 '+sign+diff.toFixed(3)+'</span>';
-    }
-    html+='<div class="lap-row"><span>'+label+'</span><span class="delta">'+right+'</span></div>';
-    prevLap=lap;
-  }
-  if(arr.length>=needHits()){
-    html+='<div class="lap-row"><span><strong>合計</strong></span><span class="delta"><strong>'+
-      (arr[needHits()-1]-arr[0]).toFixed(3)+' 秒</strong></span></div>';
-  }
-  return html;
-}
-function raceElapsedAt(t){
-  var arr=activeHits();
-  if(!arr.length)return null;
-  var t0=arr[0],need=needHits();
-  if(t<t0)return {sec:0,label:'スタート前',lapText:'ラップ秒差: —', lapLines:[]};
-  var idx=0;
-  for(var i=0;i<arr.length;i++) if(t>=arr[i]) idx=i;
-  var lines=formatLapDeltas(arr, idx);
-  if(arr.length>=need && t>=arr[need-1]){
-    var total=arr[need-1]-t0;
-    return {
-      sec:total,
-      label:'ゴール '+total.toFixed(3)+'s',
-      lapText: lines.length ? lines.join(' / ') : '—',
-      lapLines: lines
-    };
-  }
-  var lapText='';
-  if(idx>=1){
-    var cur=(t-arr[idx]);
-    lapText='現在 '+(idx)+'周目 +'+cur.toFixed(3)+'s';
-    if(lines.length) lapText += ' ｜ '+lines.join(' / ');
-  }else{
-    lapText='スタート後 '+(t-t0).toFixed(3)+'s';
-  }
-  return {sec:t-t0,label:passLabel(idx+1),lapText:lapText, lapLines:lines};
-}
+document.getElementById('analyzeBtn').addEventListener('click', function () {
+  if (S.analyzing) { S.analyzing = false; return; }
+  if (!S.line) { alert('先に線を引いてください'); return; }
+  analyze();
+});
 
-function updateOverlay(){
-  var t=video.currentTime||0;
-  clock.textContent=t.toFixed(3);
-  var listEl=document.getElementById('raceLapList');
-  var info=raceElapsedAt(t);
-  if(!info){
-    raceClock.textContent='—';
-    raceSub.textContent='未計測（スタートを記録すると表示）';
-    raceLap.textContent='ラップ秒差';
-    if(listEl) listEl.textContent='—';
-    return;
-  }
-  raceClock.textContent=info.sec.toFixed(3);
-  raceSub.textContent=info.label;
-  raceLap.textContent='ラップ秒差';
-  if(listEl){
-    if(info.lapLines && info.lapLines.length) listEl.textContent=info.lapLines.join('\n');
-    else listEl.textContent=info.lapText||'—';
-  }
-}
-function updateClockLoop(){
-  updateOverlay();
-  if(!video.paused&&!video.ended) state.raf=requestAnimationFrame(updateClockLoop);
-}
-
-function updateMainButton(){
-  mainBtn.disabled=!state.ready||state.exporting;
-  mainBtn.classList.remove('state-play','state-pass');
-  if(!state.ready){
-    mainBtn.classList.add('state-play');
-    mainBtn.childNodes[0].textContent='再生';
-    mainSub.textContent='動画を選択してください';
-    return;
-  }
-  if(state.phase==='idle'){
-    mainBtn.classList.add('state-play');
-    if(!video.paused&&!video.ended){
-      mainBtn.childNodes[0].textContent='停止';
-      mainSub.textContent='もう一度押すと停止';
-    }else{
-      mainBtn.childNodes[0].textContent='再生';
-      mainSub.textContent='押すと再生し、スタート待ちに入ります';
-    }
-    return;
-  }
-  var next=state.passIndex+1,need=needHits();
-  mainBtn.classList.add('state-pass');
-  mainBtn.childNodes[0].textContent=passLabel(next);
-  mainSub.textContent='レーン '+activeLaneSel.value+' ／ 次: '+passLabel(next)+'（'+next+'/'+need+'）';
-}
-
-function renderLaps(){
-  var box=$('lapsList'),arr=activeHits();
-  if(arr.length<2){box.textContent='まだありません（2周分の通過でラップと前周差が出ます）';return;}
-  box.innerHTML=formatLapRowsHtml(arr);
-}
-function lapDiffHtml(arr){
-  if(!arr||arr.length<2)return '—';
-  var parts=[], prevLap=null;
-  for(var k=1;k<arr.length;k++){
-    var lap=arr[k]-arr[k-1];
-    var s=passLabel(k)+'→'+passLabel(k+1)+' <span>'+lap.toFixed(3)+'s</span>';
-    if(prevLap!=null){
-      var diff=lap-prevLap;
-      var sign=diff>0?'+':'';
-      s+=' <span style="color:#ffd60a">('+sign+diff.toFixed(3)+')</span>';
-    }
-    parts.push(s);
-    prevLap=lap;
-  }
-  return parts.join('<br>');
-}
-function liveUpdateForActive(){
-  var arr=activeHits(),need=needHits();
-  showNotice('');
-  if(!arr.length){
-    liveTime.textContent='—';
-    liveMeta.textContent='レーン '+activeLaneSel.value+'：まだスタートなし';
-  }else if(arr.length>=need){
-    liveTime.textContent=(arr[need-1]-arr[0]).toFixed(3)+' 秒';
-    liveMeta.textContent='レーン '+activeLaneSel.value+' 完了：'+passLabel(need);
-  }else{
-    liveTime.textContent=(arr[arr.length-1]-arr[0]).toFixed(3)+' 秒';
-    liveMeta.textContent='レーン '+activeLaneSel.value+' 計測中 / 次は '+passLabel(arr.length+1)+'（'+arr.length+'/'+need+'）';
-  }
-  renderLaps();
-  updateOverlay();
-}
-function renderTable(){
-  ensureHitsSize();
-  var n=laneCount(),need=needHits(),html='';
-  for(var no=1;no<=n;no++){
-    var idx=n-no,arr=state.hits[idx]||[],color=COLORS[idx%COLORS.length];
-    var total='—',st='待ち',cls='wait';
-    if(arr.length>=need){total=(arr[need-1]-arr[0]).toFixed(3)+' 秒';st='完了';cls='ok';}
-    else if(arr.length){total=(arr[arr.length-1]-arr[0]).toFixed(3)+' 秒*';st=passLabel(arr.length+1)+'待ち';}
-    html+='<tr><td><span class="dot" style="background:'+color+'"></span>レーン '+no+
-      '</td><td class="'+cls+'">'+total+
-      '</td><td class="lap-cell">'+lapDiffHtml(arr)+
-      '</td><td class="'+cls+'">'+st+'</td></tr>';
-  }
-  tbody.innerHTML=html||'<tr><td colspan="4" style="color:#9ca3af">未記録</td></tr>';
-}
-
-function showAggregatePopup(finalSec){
-  $('modalTitle').textContent='集計中';
-  $('modalSub').textContent='タイムをまとめています…';
-  modal.classList.add('show');
-  setTimeout(function(){
-    $('modalTitle').textContent='集計完了';
-    $('modalSub').textContent='レーン '+activeLaneSel.value+'：'+finalSec.toFixed(3)+' 秒';
-    setTimeout(function(){modal.classList.remove('show');},900);
-  },450);
-}
-
-function recordPass(){
-  var i=activeIndex(); ensureHitsSize();
-  var need=needHits();
-  if(state.hits[i].length>=need){finishLane();return;}
-  var t=Number((video.currentTime||0).toFixed(3));
-  state.hits[i].push(t);
-  state.passIndex=state.hits[i].length;
-  liveUpdateForActive(); renderTable();
-  if(state.hits[i].length>=need){
-    var finalSec=state.hits[i][need-1]-state.hits[i][0];
-    setStatus('レーン '+activeLaneSel.value+' 完了：'+finalSec.toFixed(3)+' 秒');
-    finishLane(finalSec);
-  }else{
-    updateMainButton();
-    setStatus(passLabel(state.hits[i].length)+' 記録 @ '+t.toFixed(3)+'s → 次は '+passLabel(state.hits[i].length+1));
-  }
-}
-function finishLane(finalSec){
-  state.phase='idle'; state.passIndex=0;
-  try{video.pause();}catch(e){}
-  cancelAnimationFrame(state.raf);
-  updateOverlay(); updateMainButton(); renderTable(); liveUpdateForActive();
-  if(typeof finalSec==='number') showAggregatePopup(finalSec);
-  else{
-    var arr=activeHits(),need=needHits();
-    if(arr.length>=need) showAggregatePopup(arr[need-1]-arr[0]);
-  }
-}
-
-function onMainClick(){
-  if(!state.ready||state.exporting)return;
-  showNotice('');
-  if(state.phase==='idle'){
-    if(!video.paused&&!video.ended){
-      video.pause(); cancelAnimationFrame(state.raf); updateOverlay(); updateMainButton();
-      setStatus('停止しました'); return;
-    }
-    ensureHitsSize();
-    var i=activeIndex(),need=needHits();
-    if(state.hits[i].length>=need){
-      showNotice('レーン '+activeLaneSel.value+' は計測完了済みです。「記録を消す」か、上の「計測するレーン」を切り替えてください。');
-      setStatus('完了済みレーンです');
-      return;
-    }
-    state.passIndex=state.hits[i].length;
-    state.phase='pass';
-    video.play().catch(function(){});
-    cancelAnimationFrame(state.raf); updateClockLoop(); updateMainButton();
-    setStatus(passLabel(state.passIndex+1)+' を待っています');
-    return;
-  }
-  recordPass();
-}
-
-function buildSavePayload(){
-  ensureHitsSize();
-  var n=laneCount(),need=needHits(),lanes=[];
-  for(var no=1;no<=n;no++){
-    var idx=n-no,arr=state.hits[idx]||[],laps=[];
-    for(var k=1;k<arr.length;k++){
-      laps.push({from:passLabel(k),to:passLabel(k+1),sec:Number((arr[k]-arr[k-1]).toFixed(3))});
-    }
-    lanes.push({
-      lane:no, passTimes:arr.slice(), laps:laps,
-      timeSec:arr.length>=need?Number((arr[need-1]-arr[0]).toFixed(3)):null
+// ---------- candidates UI ----------
+function renderCandidates() {
+  var box = document.getElementById('candList');
+  box.innerHTML = '';
+  S.candidates.forEach(function (cd, i) {
+    var div = document.createElement('div'); div.className = 'cand';
+    var sw = document.createElement('span'); sw.className = 'swatch';
+    sw.style.background = cd.color ? 'rgb(' + cd.color.join(',') + ')' : '#33343c';
+    div.appendChild(sw);
+    var b = document.createElement('b'); b.textContent = fmt(cd.t) + ' 秒'; div.appendChild(b);
+    var sel = document.createElement('select');
+    var none = document.createElement('option'); none.value = ''; none.textContent = '車を選ぶ'; sel.appendChild(none);
+    S.cars.forEach(function (c) { var o = document.createElement('option'); o.value = c.id; o.textContent = c.name; sel.appendChild(o); });
+    if (cd.suggested) sel.value = cd.suggested;
+    div.appendChild(sel);
+    var go = document.createElement('button'); go.textContent = '見る';
+    go.addEventListener('click', function () { vid.pause(); vid.currentTime = cd.t; });
+    div.appendChild(go);
+    var ok = document.createElement('button'); ok.textContent = '採用'; ok.className = 'primary';
+    ok.addEventListener('click', function () {
+      if (!sel.value) { alert('車を選んでください'); return; }
+      S.laps[sel.value].push(cd.t); S.laps[sel.value].sort(function (a, b) { return a - b; });
+      S.candidates.splice(i, 1); renderCandidates(); drawTimeline(); renderLapTables();
     });
-  }
-  return {savedAt:new Date().toISOString(),lapCount:lapCount(),needPasses:need,lanes:lanes};
-}
-
-function askFileName(defaultName){
-  return new Promise(function(resolve){
-    var m=$('nameModal'), input=$('fileNameInput');
-    input.value=defaultName;
-    m.classList.add('show');
-    function done(v){ m.classList.remove('show'); resolve(v); }
-    $('nameOk').onclick=function(){ done((input.value||defaultName).trim()||defaultName); };
-    $('nameCancel').onclick=function(){ done(null); };
+    div.appendChild(ok);
+    var del = document.createElement('button'); del.textContent = '消す';
+    del.addEventListener('click', function () { S.candidates.splice(i, 1); renderCandidates(); drawTimeline(); });
+    div.appendChild(del);
+    box.appendChild(div);
   });
+  drawTimeline();
 }
 
-function downloadBlob(blob, filename){
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-function saveResults(){
-  try{
-    var prev=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');
-    if(!Array.isArray(prev))prev=[];
-    prev.unshift(buildSavePayload());
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(prev.slice(0,30)));
-    $('saveStatus').textContent='結果を端末に保存しました（'+new Date().toLocaleString()+'）';
-  }catch(e){ $('saveStatus').textContent='保存に失敗しました'; }
-}
-
-async function exportJson(){
-  var name=await askFileName('lane-timer-'+Date.now()+'.json');
-  if(!name) return;
-  if(!/\.json$/i.test(name)) name+='.json';
-  var blob=new Blob([JSON.stringify(buildSavePayload(),null,2)],{type:'application/json'});
-  downloadBlob(blob,name);
-  $('saveStatus').textContent='JSONをダウンロードしました';
-}
-
-function askOrientation(){
-  return new Promise(function(resolve){
-    var m=$('orientModal');
-    m.classList.add('show');
-    function cleanup(v){ m.classList.remove('show'); resolve(v); }
-    m.onclick=function(e){
-      var btn=e.target.closest('button'); if(!btn) return;
-      if(btn.id==='orientCancel') return cleanup(null);
-      if(btn.dataset&&btn.dataset.rot!=null) return cleanup(parseInt(btn.dataset.rot,10));
-    };
-  });
-}
-
-function waitSeek(){
-  return new Promise(function(resolve){
-    var done=false;
-    function fin(){ if(done)return; done=true; video.removeEventListener('seeked',fin); resolve(); }
-    video.addEventListener('seeked',fin);
-    setTimeout(fin,150);
-  });
-}
-
-async function exportVideoWithOverlay(){
-  if(!state.ready||state.exporting)return;
-  var arr=activeHits();
-  if(!arr.length){ $('saveStatus').textContent='先にスタートを記録してください'; return; }
-  if(typeof MediaRecorder==='undefined'){ $('saveStatus').textContent='このブラウザは動画書き出しに未対応です'; return; }
-
-  var rot=await askOrientation();
-  if(rot==null){ $('saveStatus').textContent='書き出しをキャンセルしました'; return; }
-
-  var outName=await askFileName('lane-timer-overlay-'+Date.now()+'.webm');
-  if(!outName){ $('saveStatus').textContent='書き出しをキャンセルしました'; return; }
-  if(!/\.webm$/i.test(outName)) outName+='.webm';
-
-  state.exporting=true; updateMainButton();
-  $('saveStatus').textContent='秒数入り動画を書き出し中…';
-  $('btnExportVideo').disabled=true;
-
-  var startAt=Math.max(0,arr[0]-0.5);
-  var endAt=video.duration||0;
-  if(arr.length>=needHits()) endAt=Math.min(endAt, arr[needHits()-1]+1.0);
-
-  var vw=video.videoWidth||1280, vh=video.videoHeight||720;
-  // 鮮明化: 長辺が1920未満なら拡大（最大3倍、長辺約1920目安）
-  var longSide=Math.max(vw,vh);
-  var scale=1;
-  if(longSide<1280) scale=Math.min(3, 1920/longSide);
-  else if(longSide<1600) scale=Math.min(2, 1920/longSide);
-  scale=Math.max(1, scale);
-  if(rot===90||rot===-90){ exportCv.width=Math.round(vh*scale); exportCv.height=Math.round(vw*scale); }
-  else { exportCv.width=Math.round(vw*scale); exportCv.height=Math.round(vh*scale); }
-
-  exportCtx.imageSmoothingEnabled=true;
-  if(exportCtx.imageSmoothingQuality) exportCtx.imageSmoothingQuality='high';
-
-  await video.play().catch(function(){});
-  var canvasStream=exportCv.captureStream(60);
-  var mixedStream=canvasStream;
-  try{
-    var vStream=video.captureStream?video.captureStream():null;
-    if(vStream){
-      var tracks=canvasStream.getVideoTracks().slice();
-      vStream.getAudioTracks().forEach(function(tr){ tracks.push(tr); });
-      mixedStream=new MediaStream(tracks);
+// ---------- pins & laps ----------
+document.getElementById('startPinBtn').addEventListener('click', function () { S.startPin = vid.currentTime; drawTimeline(); renderLapTables(); });
+document.getElementById('goalPinBtn').addEventListener('click', function () { S.goalPin = vid.currentTime; drawTimeline(); renderLapTables(); });
+document.getElementById('lapPinBtn').addEventListener('click', function () {
+  var id = document.getElementById('lapCarSel').value;
+  if (!id) { alert('先に車を追加してください'); return; }
+  S.laps[id].push(vid.currentTime); S.laps[id].sort(function (a, b) { return a - b; });
+  drawTimeline(); renderLapTables();
+});
+document.getElementById('clearPinsBtn').addEventListener('click', function () {
+  S.startPin = null; S.goalPin = null; S.candidates = [];
+  Object.keys(S.laps).forEach(function (k) { S.laps[k] = []; });
+  renderCandidates(); drawTimeline(); renderLapTables();
+});
+function renderLapTables() {
+  var box = document.getElementById('lapTables');
+  box.innerHTML = '';
+  S.cars.forEach(function (c) {
+    var pins = (S.laps[c.id] || []).slice().sort(function (a, b) { return a - b; });
+    var start = S.startPin !== null ? S.startPin : 0;
+    var bounds = [start].concat(pins);
+    if (S.goalPin !== null && S.goalPin > (bounds[bounds.length - 1] || 0)) bounds.push(S.goalPin);
+    var rows = '';
+    var total = 0;
+    for (var i = 1; i < bounds.length; i++) {
+      var lt = bounds[i] - bounds[i - 1]; total += lt;
+      rows += '<tr><th>' + i + '周目</th><td>' + fmt(lt) + '</td></tr>';
     }
-  }catch(e){ console.warn(e); }
-
-  var mime='';
-  if(MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) mime='video/webm;codecs=vp9,opus';
-  else if(MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) mime='video/webm;codecs=vp8,opus';
-  else if(MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) mime='video/webm;codecs=vp9';
-  else if(MediaRecorder.isTypeSupported('video/webm')) mime='video/webm';
-
-  // ビットレートを高めに（解像度に応じて 12〜40Mbps）
-  var bits=Math.min(40e6, Math.max(12e6, exportCv.width*exportCv.height*0.25));
-  var recOpts=mime?{mimeType:mime, videoBitsPerSecond:bits, audioBitsPerSecond:256000}:{videoBitsPerSecond:bits};
-  var rec; try{ rec=new MediaRecorder(mixedStream, recOpts);}catch(e){ rec=new MediaRecorder(mixedStream); }
-  var chunks=[];
-  rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
-  var stopped=new Promise(function(res){ rec.onstop=res; });
-
-  video.pause();
-  video.currentTime=startAt;
-  await waitSeek();
-  rec.start(100);
-  await video.play().catch(function(){});
-
-  await new Promise(function(resolve){
-    function frame(){
-      var t=video.currentTime||0;
-      exportCtx.save();
-      exportCtx.clearRect(0,0,exportCv.width,exportCv.height);
-      if(rot===90){
-        exportCtx.translate(exportCv.width,0); exportCtx.rotate(Math.PI/2);
-        exportCtx.drawImage(video,0,0,exportCv.height,exportCv.width);
-      }else if(rot===-90){
-        exportCtx.translate(0,exportCv.height); exportCtx.rotate(-Math.PI/2);
-        exportCtx.drawImage(video,0,0,exportCv.height,exportCv.width);
-      }else{
-        exportCtx.drawImage(video,0,0,exportCv.width,exportCv.height);
-      }
-      exportCtx.restore();
-
-      var info=raceElapsedAt(t);
-      var lapLines=(info&&info.lapLines)?info.lapLines:[];
-      var panelH=Math.max(56, exportCv.height*(0.10+Math.min(0.12, lapLines.length*0.028)));
-      exportCtx.fillStyle='rgba(0,0,0,0.5)';
-      exportCtx.fillRect(0,0,exportCv.width,panelH);
-      exportCtx.fillStyle='#fff';
-      exportCtx.font='bold '+Math.round(exportCv.height*0.048)+'px sans-serif';
-      exportCtx.fillText(info?info.sec.toFixed(3):'—', 24, Math.round(exportCv.height*0.05));
-      exportCtx.font='bold '+Math.round(exportCv.height*0.022)+'px sans-serif';
-      exportCtx.fillStyle='#d1d5db';
-      exportCtx.fillText(info?info.label:'スタート前', 24, Math.round(exportCv.height*0.085));
-      exportCtx.fillStyle='#6BAFD6';
-      exportCtx.font='bold '+Math.round(exportCv.height*0.02)+'px sans-serif';
-      for(var li=0; li<lapLines.length; li++){
-        exportCtx.fillText(lapLines[li], 24, Math.round(exportCv.height*(0.115+li*0.028)));
-      }
-
-      updateOverlay();
-      if(video.ended || t>=endAt-0.05){ video.pause(); resolve(); return; }
-      requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
+    var tbl = document.createElement('table'); tbl.className = 'laps';
+    tbl.innerHTML = '<tr><th colspan="2">' + c.name + '（ピン ' + pins.length + ' 件）</th></tr>' + rows +
+      (rows ? '<tr><th>合計</th><td>' + fmt(total) + '</td></tr>' : '<tr><td colspan="2">まだラップがありません</td></tr>');
+    box.appendChild(tbl);
   });
-
-  await new Promise(function(r){ setTimeout(r,120); });
-  rec.stop(); await stopped;
-
-  var blob=new Blob(chunks,{type:rec.mimeType||'video/webm'});
-  downloadBlob(blob,outName);
-
-  state.exporting=false;
-  $('btnExportVideo').disabled=false;
-  updateMainButton();
-  $('saveStatus').textContent='ダウンロードへ保存しました';
-  updateOverlay();
 }
 
-mainBtn.addEventListener('click', onMainClick);
-
-$('file').addEventListener('change', function(e){
-  var f=e.target.files&&e.target.files[0]; if(!f)return;
-  video.src=URL.createObjectURL(f);
-  video.onloadedmetadata=function(){
-    state.ready=true; state.phase='idle'; state.passIndex=0; state.hits=[]; state.viewRot=0;
-    applyViewRot(); rebuildLaneSelect(); ensureHitsSize();
-    updateMainButton(); renderTable(); liveUpdateForActive();
-    showNotice(''); setStatus('準備完了。再生→スタート→各周終了の順で進めてください');
-    updateOverlay();
-  };
-});
-$('laneN').addEventListener('change', function(){
-  state.phase='idle'; state.passIndex=0; rebuildLaneSelect(); updateMainButton(); renderTable(); liveUpdateForActive(); showNotice('');
-});
-$('laps').addEventListener('change', function(){ updateMainButton(); renderTable(); liveUpdateForActive(); });
-activeLaneSel.addEventListener('change', function(){
-  state.phase='idle'; state.passIndex=0; try{video.pause();}catch(e){}
-  updateMainButton(); liveUpdateForActive(); showNotice('');
-  setStatus('計測レーンを '+activeLaneSel.value+' に切り替えました');
-});
-
-$('btnReplay').addEventListener('click', function(){
-  if(!state.ready)return;
-  showNotice('');
-  video.pause();
-  video.currentTime=0;
-  ensureHitsSize();
-  state.passIndex=activeHits().length;
-  if(state.passIndex>=needHits()){
-    state.phase='idle';
-    showNotice('レーン '+activeLaneSel.value+' は計測完了済みです。「記録を消す」か、レーンを切り替えてください。');
-    updateMainButton(); updateOverlay(); return;
-  }
-  var onSeeked=function(){
-    video.removeEventListener('seeked', onSeeked);
-    state.phase='pass';
-    video.play().catch(function(){});
-    cancelAnimationFrame(state.raf); updateClockLoop(); updateMainButton();
-    setStatus('再度再生。次は '+passLabel(state.passIndex+1));
-  };
-  video.addEventListener('seeked', onSeeked);
-  // fallback if already at 0
-  setTimeout(function(){ if(state.phase!=='pass') onSeeked(); }, 200);
-});
-
-$('btnPlayReset').addEventListener('click', function(){
-  if(!state.ready)return;
-  showNotice('');
-  try{ video.pause(); }catch(e){}
-  cancelAnimationFrame(state.raf);
-  state.phase='idle';
-  state.passIndex=0;
-  var done=function(){
-    video.removeEventListener('seeked', done);
-    updateOverlay();
-    updateMainButton();
-    setStatus('再生位置を先頭に戻しました（記録は残っています）');
-  };
-  video.addEventListener('seeked', done);
-  try{ video.currentTime=0; }catch(e){}
-  // すでに0の場合 seeked が来ないことがある
-  setTimeout(function(){
-    if(Math.abs(video.currentTime||0)<0.05) done();
-  }, 180);
-});
-
-$('btnResetLane').addEventListener('click', function(){
-  ensureHitsSize(); state.hits[activeIndex()]=[];
-  state.phase='idle'; state.passIndex=0; showNotice('');
-  updateMainButton(); liveUpdateForActive(); renderTable();
-  setStatus('レーン '+activeLaneSel.value+' の記録を消しました');
-});
-$('btnClearAll').addEventListener('click', function(){
-  state.hits=[]; ensureHitsSize(); state.phase='idle'; state.passIndex=0; showNotice('');
-  updateMainButton(); liveUpdateForActive(); renderTable(); setStatus('全リセットしました');
-});
-$('btnSave').addEventListener('click', saveResults);
-$('btnExport').addEventListener('click', function(){ exportJson().catch(function(e){ console.error(e); }); });
-$('btnExportVideo').addEventListener('click', function(){
-  exportVideoWithOverlay().catch(function(err){
-    console.error(err);
-    state.exporting=false; $('btnExportVideo').disabled=false; updateMainButton();
-    $('saveStatus').textContent='書き出しエラー: '+(err&&err.message?err.message:err);
+// ---------- timeline ----------
+var tl = document.getElementById('timeline');
+function drawTimeline() {
+  var w = tl.clientWidth || tl.parentElement.clientWidth - 28;
+  if (tl.width !== w) tl.width = w;
+  var ctx = tl.getContext('2d');
+  var H = tl.height, dur = vid.duration || 0;
+  ctx.clearRect(0, 0, w, H);
+  ctx.fillStyle = '#101114'; ctx.fillRect(0, 0, w, H);
+  if (!dur) return;
+  var lanes = [{ label: '候補', items: S.candidates.map(function (c) { return { t: c.t, col: '#8e8e96' }; }) }];
+  S.cars.forEach(function (c) {
+    lanes.push({ label: c.name, items: (S.laps[c.id] || []).map(function (t) { return { t: t, col: c.color ? 'rgb(' + c.color.join(',') + ')' : '#ff7a00' }; }) });
   });
+  var laneH = Math.min(22, (H - 18) / lanes.length);
+  lanes.forEach(function (ln, li) {
+    var y = 14 + li * laneH;
+    ctx.fillStyle = '#26272c'; ctx.fillRect(0, y, w, laneH - 3);
+    ctx.fillStyle = '#a7a7ae'; ctx.font = '10px sans-serif'; ctx.fillText(ln.label, 4, y + laneH - 7);
+    ln.items.forEach(function (it) {
+      var x = it.t / dur * w;
+      ctx.fillStyle = it.col; ctx.fillRect(x - 1.5, y + 1, 3, laneH - 5);
+    });
+  });
+  function mark(t, col, label) {
+    if (t === null) return;
+    var x = t / dur * w;
+    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x, 10); ctx.lineTo(x, H - 4); ctx.stroke();
+    ctx.fillStyle = col; ctx.font = '10px sans-serif'; ctx.fillText(label, x + 3, 12);
+  }
+  mark(S.startPin, '#3ddc84', '開始');
+  mark(S.goalPin, '#ffffff', 'ゴール');
+  var px = vid.currentTime / dur * w;
+  ctx.strokeStyle = '#ff7a00'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+}
+tl.addEventListener('pointerdown', function (e) {
+  if (!vid.duration) return;
+  var r = tl.getBoundingClientRect();
+  vid.currentTime = clamp((e.clientX - r.left) / r.width, 0, 1) * vid.duration;
 });
-$('btnRotRight').addEventListener('click', function(){ rotateView(1); });
-$('btnRotLeft').addEventListener('click', function(){ rotateView(-1); });
-$('btnRotReset').addEventListener('click', function(){ state.viewRot=0; applyViewRot(); setStatus('表示向きをリセットしました'); });
-$('btnHelp').addEventListener('click', function(){ $('helpSheet').classList.add('show'); });
-$('helpClose').addEventListener('click', function(){ $('helpSheet').classList.remove('show'); });
-$('helpSheet').addEventListener('click', function(e){ if(e.target===this) this.classList.remove('show'); });
 
-video.addEventListener('play', function(){ cancelAnimationFrame(state.raf); updateClockLoop(); updateMainButton(); });
-video.addEventListener('pause', function(){ cancelAnimationFrame(state.raf); updateOverlay(); updateMainButton(); });
-video.addEventListener('seeked', updateOverlay);
-video.addEventListener('timeupdate', function(){ if(video.paused) updateOverlay(); });
-
-rebuildLaneSelect(); ensureHitsSize(); updateMainButton(); renderTable();
-})();
+// test hooks
+window.LT = { state: S, setLine: function (a, b, c, d) { S.line = { x1: a, y1: b, x2: c, y2: d }; drawOverlay(); }, addCar: function (name, color) { S.carSeq += 1; var cc = { id: 'car' + S.carSeq, name: name, color: color }; S.cars.push(cc); S.laps[cc.id] = []; renderCars(); return cc.id; }, analyze: analyze, vid: vid };
+renderCars(); renderLapTables();
 </script>
 </body>
 </html>
